@@ -8,8 +8,16 @@ app.use(bodyParser.json());
 
 const port = 3000
 
-app.get('/', (req, res) => {
+app.get('/login', (req, res) => {
     res.send('Hello World!')
+})
+
+app.post('/login', (req, res) => {
+    username = req.body.username;
+    password = req.body.password;
+
+    console.log(username, password);
+
 })
 
 
