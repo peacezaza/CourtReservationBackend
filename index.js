@@ -33,9 +33,18 @@ app.get('/', (req, res) => {
 })
 
 app.post('/login', (req, res) => {
-    username = req.body.username;
+    email = req.body.email;
     password = req.body.password;
-    console.log(username, password);
+    console.log(email, password);
+})
+
+app.post('/signup', (req, res) => {
+    email = req.body.email;
+    password = req.body.password;
+    confirmPassword = req.body.confirmPassword;
+
+    console.log("Email: ", email, "\n", "Password: ", password, "\n", "Confirm Password: ", confirmPassword, "\n");
+
 })
 
 
