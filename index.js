@@ -51,6 +51,8 @@ app.post('/signup', (req, res) => {
 
 
 
-app.listen(port, () => {
-    console.log(`Example app listening at http://localhost:${port}`)
-})
+app.listen(port, '20.2.250.248', () => { // Specifying the IP address to bind to
+    console.log(`Example app listening at http://20.2.250.248:${port}`)
+});
+
+//20.2.250.248
