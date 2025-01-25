@@ -1,4 +1,7 @@
+const {hashPassword} = require('./encryption')
+
 const mysql = require('mysql2/promise');
+
 
 let connection;
 
@@ -21,8 +24,10 @@ async function connectDatabase() {
 
 async function insertNewUser(username, email, password, user_type){
     try{
+        const hashedPassword = await hashPassword(password)
+        console.log("Hash in insert: ", hashedPassword);
         const query = "INSERT INTO user (username, email, password, user_type) values(?, ?, ?, ?)"
-        const [result] = await connection.query(query, [username, email, password, user_type]);
+        const [result] = await connection.query(query, [username, email, hashedPassword, user_type]);
         console.log('Insert successful, ID:', result.insertId);
     }
     catch (err){

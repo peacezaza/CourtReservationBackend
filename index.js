@@ -51,11 +51,25 @@ app.post('/signup',  async (req, res) => {
                 "message": "User successfully created",
             })
         }
-        else{
-            console.log("Duplicated Email or username \n");
+        else if(await checkDuplicate(email, "email", "user") && await checkDuplicate(username, "username", "user")){
+            console.log("Duplicated Email and User\n");
             return res.status(400).json({
                 "success": false,
-                "message": "Email or username already exists",
+                "message": "Email and user already exists",
+            })
+        }
+        else if((await checkDuplicate(email, "email", "user"))){
+            console.log("Duplicated Email\n");
+            return res.status(400).json({
+                "success": false,
+                "message": "Email already exists",
+            })
+        }
+        else if((await checkDuplicate(username, "username", "user"))){
+            console.log("Duplicated Username\n");
+            return res.status(400).json({
+                "success": false,
+                "message": "Username already exists",
             })
         }
 
