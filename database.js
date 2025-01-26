@@ -1,4 +1,4 @@
-const {hashPassword} = require('./encryption')
+const {hashPassword, comparePassword} = require('./encryption')
 
 const mysql = require('mysql2/promise');
 
@@ -41,7 +41,7 @@ async function checkDuplicate(data, column, table) {
         // Pass parameters in order: column, table, column (for WHERE), value
         const [rows] = await connection.query(query, [table, column, data]);
 
-        console.log(rows);
+        // console.log(rows);
         return !(rows.length === 0);
     } catch (error) {
         console.error('Error while querying checkDuplication:', error);
@@ -50,7 +50,21 @@ async function checkDuplicate(data, column, table) {
     connection.close()
 }
 
+async function login(data, column, password){
+
+    try{
+        const query = "SELECT PASSWORD FROM USER WHERE ?? = ?"
+        const [rows] = await connection.query(query, [column, data])
+        // console.log(rows[0]["PASSWORD"])
+        return comparePassword(password, rows[0]["PASSWORD"])
+    }
+    catch (error){
+        console.log(error);
+
+    }
+}
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser}
+
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login}
