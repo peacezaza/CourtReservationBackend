@@ -2,7 +2,7 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser } = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login } = require('./database')
 
 const express = require('express')
 const app = express()
@@ -27,10 +27,60 @@ app.get('/', (req, res) => {
     res.send('Hello World!')
 })
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     email = req.body.email;
+    username = req.body.username;
     password = req.body.password;
-    console.log(email, password);
+
+    console.log("Email ", email, "\n", "Username ", username, "\n", "Password ", password, "\n");
+
+    if(email === undefined){
+        if(await checkDuplicate(username, "username", "user")){
+            if(await login(username, "username", password)){
+                return res.status(200).json({
+                    "status": true,
+                    "message": "Logged in Successfully"
+                })
+            }else{
+                return res.status(401).json({
+                    "status" : false,
+                    "message" : "Incorrect Password"
+                })
+            }
+        }
+        else{
+            console.log("Username doesn't exists.")
+            return res.status(401).json({
+                "status": false,
+                "message": "Username doesn't exists."
+            })
+        }
+    }
+    else if(username === undefined){
+        if(await checkDuplicate(email, "email", "user")){
+            if(await login(email, "email", password)){
+                return res.status(200).json({
+                    "status" : true,
+                    "message": "Logged in Successfully"
+                })
+            }else{
+                return res.status(401).json({
+                    "status": false,
+                    "message" : "Incorrect Password"
+                })
+            }
+        }else{
+            return res.status(401).json({
+                "status": false,
+                "message": "Email doesn't exists."
+            })
+        }
+    }
+
+    res.status(200)
+
+// Signup Bug when email undefined
+
 })
 
 app.post('/signup',  async (req, res) => {
@@ -90,18 +140,6 @@ app.post('/signup',  async (req, res) => {
             })
         }
     }
-
-
-
-    // if (!(await checkDuplicate(email, "email", "user"))) {
-    //     console.log(await insertNewUser(username, email, password, user_type));
-    // }else{
-    //     console.log("Duplicated Email")
-    // }
-
-
-
-
 })
 
 
