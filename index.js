@@ -79,8 +79,6 @@ app.post('/login', async (req, res) => {
         }
     }
 
-    res.status(200)
-
 // Signup Bug when email undefined
 
 })

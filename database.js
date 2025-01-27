@@ -67,7 +67,7 @@ async function checkDuplicate(data, column, table) {
 async function login(data, column, password){
 
     try{
-        const query = "SELECT PASSWORD FROM USER WHERE ?? = ?"
+        const query = "SELECT PASSWORD FROM user WHERE ?? = ?"
         const [rows] = await connection.query(query, [column, data])
         // console.log(rows[0]["PASSWORD"])
         return comparePassword(password, rows[0]["PASSWORD"])
