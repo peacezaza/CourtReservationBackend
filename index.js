@@ -32,8 +32,6 @@ app.post('/login', async (req, res) => {
     username = req.body.username;
     password = req.body.password;
 
-    await showtable();
-
     console.log("Email ", email, "\n", "Username ", username, "\n", "Password ", password, "\n");
 
     if(email === undefined){

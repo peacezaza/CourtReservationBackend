@@ -28,7 +28,6 @@ async function showtable(){
 
     try{
         const [rows] = await connection.query(query);
-
         console.log("Table list is :", rows);
     }
     catch (err){
@@ -69,7 +68,6 @@ async function login(data, column, password){
     try{
         const query = "SELECT PASSWORD FROM user WHERE ?? = ?"
         const [rows] = await connection.query(query, [column, data])
-        // console.log(rows[0]["PASSWORD"])
         return comparePassword(password, rows[0]["PASSWORD"])
     }
     catch (error){
