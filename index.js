@@ -2,7 +2,7 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login } = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login, showtable } = require('./database')
 
 const express = require('express')
 const app = express()
@@ -31,6 +31,8 @@ app.post('/login', async (req, res) => {
     email = req.body.email;
     username = req.body.username;
     password = req.body.password;
+
+    await showtable();
 
     console.log("Email ", email, "\n", "Username ", username, "\n", "Password ", password, "\n");
 

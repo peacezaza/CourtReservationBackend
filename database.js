@@ -8,7 +8,7 @@ let connection;
 async function connectDatabase() {
 
     try{
-        connection =await mysql.createConnection({
+        connection = await mysql.createConnection({
             host: 'localhost',
             user: 'root',
             password: 'root',
@@ -20,6 +20,20 @@ async function connectDatabase() {
     }
 
 
+}
+
+async function showtable(){
+
+    const query = "show tables";
+
+    try{
+        const [rows] = await connection.query(query);
+
+        console.log("Table list is :", rows);
+    }
+    catch (err){
+        console.log(err);
+    }
 }
 
 async function insertNewUser(username, email, password, user_type){
@@ -67,4 +81,4 @@ async function login(data, column, password){
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login}
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, showtable}
