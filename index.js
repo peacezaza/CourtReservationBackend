@@ -36,7 +36,6 @@ app.post('/login', async (req, res) => {
     username = req.body.username;
     password = req.body.password;
 
-
     console.log("Email ", email, "\n", "Username ", username, "\n", "Password ", password, "\n");
 
     if(email === undefined){
@@ -51,8 +50,8 @@ app.post('/login', async (req, res) => {
                 })
             }else{
                 return res.status(401).json({
-                    "status" : false,
-                    "message" : "Incorrect Password"
+                    "status": false,
+                    "message": "Username doesn't exists."
                 })
             }
         }
@@ -80,16 +79,18 @@ app.post('/login', async (req, res) => {
                 console.log("Incorrect Password\n")
                 return res.status(401).json({
                     "status": false,
-                    "message" : "Incorrect Password"
+                    "message": "Email doesn't exists."
                 })
             }
-        }else{
-            return res.status(401).json({
-                "status": false,
-                "message": "Email doesn't exists."
-            })
         }
+    }else{
+        return res.status(401).json({
+            "status": false,
+            "message": "Invaild data"
+        })
     }
+
+
 
 // Signup Bug when email undefined
 
@@ -157,7 +158,14 @@ app.post('/signup',  async (req, res) => {
                 "message": "Email already exists",
             })
         }
+    }else{
+        return res.status(401).json({
+            "status" : false,
+            "message" : "Invaild data"
+        })
     }
+
+
 })
 
 
