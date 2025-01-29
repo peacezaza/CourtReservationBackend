@@ -2,7 +2,8 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, showtable } = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo} = require('./database')
+const {createToken} = require('./authentication')
 
 const express = require('express')
 const app = express()
@@ -13,6 +14,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const port = 3000
+const ip = '0.0.0.0'
 
 // Connect to Database
 
@@ -28,20 +30,24 @@ app.get('/', (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
+
+
     email = req.body.email;
     username = req.body.username;
     password = req.body.password;
 
-    await showtable();
 
     console.log("Email ", email, "\n", "Username ", username, "\n", "Password ", password, "\n");
 
     if(email === undefined){
         if(await checkDuplicate(username, "username", "user")){
             if(await login(username, "username", password)){
+                const data = await getUserInfo(username, "username")
+                const token = createToken(data);
                 return res.status(200).json({
                     "status": true,
-                    "message": "Logged in Successfully"
+                    "message": "Logged in Successfully",
+                    "token" : token,
                 })
             }else{
                 return res.status(401).json({
@@ -59,13 +65,19 @@ app.post('/login', async (req, res) => {
         }
     }
     else if(username === undefined){
+        console.log("TAP")
         if(await checkDuplicate(email, "email", "user")){
             if(await login(email, "email", password)){
+                console.log("Logged in Successfully\n")
+                const data = await getUserInfo(email, "email")
+                const token = createToken(data);
                 return res.status(200).json({
                     "status" : true,
-                    "message": "Logged in Successfully"
+                    "message": "Logged in Successfully",
+                    "token": token,
                 })
             }else{
+                console.log("Incorrect Password\n")
                 return res.status(401).json({
                     "status": false,
                     "message" : "Incorrect Password"
@@ -87,7 +99,7 @@ app.post('/signup',  async (req, res) => {
     username = req.body.username;
     email = req.body.email;
     password = req.body.password;
-    user_type = req.body.user_type
+    user_type = req.body.user_type;
 
 
     console.log("Email: ", email, "\n","Username ", username, "\n", "Password: ", password, "\n", "User_type", user_type,  "\n");
@@ -96,9 +108,12 @@ app.post('/signup',  async (req, res) => {
     if(username !== undefined){
         if (!(await checkDuplicate(email, "email", "user")) && !(await checkDuplicate(username, "username", "user"))) {
             console.log(await insertNewUser(username, email, password, user_type));
+            const data = await getUserInfo(email, "email")
+            const token = createToken(data);
             return res.status(201).json({
                 "success": true,
                 "message": "User successfully created",
+                "token": token
             })
         }
         else if(await checkDuplicate(email, "email", "user") && await checkDuplicate(username, "username", "user")){
@@ -127,9 +142,12 @@ app.post('/signup',  async (req, res) => {
         if (!(await checkDuplicate(email, "email", "user"))) {
             console.log(await insertNewUser(username, email, password, user_type));
             console.log("Inserted Success")
+            const data = await getUserInfo(email, "email")
+            const token = createToken(data);
             return res.status(201).json({
                 "success": true,
                 "message": "User successfully created",
+                "token" : token
             })
         }
         else{
@@ -143,8 +161,8 @@ app.post('/signup',  async (req, res) => {
 })
 
 
-app.listen(port,'0.0.0.0', () => { // Specifying the IP address to bind to
-    console.log(`Example app listening at http://localhost:${port}`)
+app.listen(port,ip, () => { // Specifying the IP address to bind to
+    console.log(`Example app listening at http://${ip}:${port}`)
 });
 
 //20.2.250.248

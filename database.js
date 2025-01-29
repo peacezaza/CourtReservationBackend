@@ -13,6 +13,7 @@ async function connectDatabase() {
             user: 'root',
             password: 'root',
             database: 'court_reservation',
+            port: 3307
         })
     }
     catch (error){
@@ -61,7 +62,6 @@ async function checkDuplicate(data, column, table) {
         console.error('Error while querying checkDuplication:', error);
     }
 
-    connection.close()
 }
 
 async function login(data, column, password){
@@ -78,7 +78,27 @@ async function login(data, column, password){
     }
 }
 
+async function getUserInfo(data, column){
+    const query = "SELECT id, username, email, user_type FROM user WHERE ?? = ?"
+
+    try{
+        const [rows] = await connection.query(query, [column, data]);
+
+        console.log(rows);
+        if(rows.length >= 0){
+            return rows[0];
+        }else{
+            return null;
+        }
+    }
+    catch (err){
+        console.log("Error get user info", err);
+    }
+
+
+}
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, showtable}
+
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo}

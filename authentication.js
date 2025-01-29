@@ -1,5 +1,25 @@
+
+
 const jwt = require('jsonwebtoken');
-const SECRET = "your_secret_key";
+
+
+function createToken(data){
+    const SECRET = "your_secret_key";
+
+    const payload = {
+        userData : data,
+    }
+
+    const options = {
+        expiresIn: "3h",
+    }
+
+    const token = jwt.sign(payload, SECRET, options)
+
+    console.log(token);
+
+    return token
+}
 
 
 function authenticateToken(req, res, next) {
@@ -18,4 +38,6 @@ function authenticateToken(req, res, next) {
         next();
     });
 }
+
+module.exports = {createToken}
 
