@@ -12,7 +12,7 @@ async function connectDatabase() {
             host: 'localhost',
             user: 'root',
             password: 'root',
-            database: 'court_reservation',
+            database: 'mydb',
             port: 3307
         })
     }
@@ -36,12 +36,12 @@ async function showtable(){
     }
 }
 
-async function insertNewUser(username, email, password, user_type){
+async function insertNewUser(username, email, password, user_type,point){
     try{
         const hashedPassword = await hashPassword(password)
         console.log("Hash in insert: ", hashedPassword);
-        const query = "INSERT INTO user (username, email, password, user_type) values(?, ?, ?, ?)"
-        const [result] = await connection.query(query, [username, email, hashedPassword, user_type]);
+        const query = "INSERT INTO user (username, email, password, user_type,point) values(?, ?, ?, ?, ?)"
+        const [result] = await connection.query(query, [username, email, hashedPassword, user_type , point]);
         console.log('Insert successful, ID:', result.insertId);
     }
     catch (err){
@@ -77,7 +77,7 @@ async function login(data, column, password){
 }
 
 async function getUserInfo(data, column){
-    const query = "SELECT id, username, email, user_type FROM user WHERE ?? = ?"
+    const query = "SELECT id, username, email, user_type,point FROM user WHERE ?? = ?"
 
     try{
         const [rows] = await connection.query(query, [column, data]);
