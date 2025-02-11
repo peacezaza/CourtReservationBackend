@@ -1,7 +1,3 @@
-
-
-
-
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo} = require('./database')
 const {createToken} = require('./authentication')
 
@@ -167,3 +163,22 @@ app.listen(port,ip, () => { // Specifying the IP address to bind to
 });
 
 //20.2.250.248
+
+
+//ส่ง point ตามไอดี   test : http://localhost:3000/user/points/{id}
+app.get('/user/points/:userId', async (req, res) => {
+    const userId = req.params.userId;
+
+    try {
+        const userInfo = await getUserInfo(userId, "id"); 
+
+        if (userInfo) {
+            return res.json({ points: userInfo.point }); 
+        } else {
+            return res.status(404).json({ message: "User not found" });
+        }
+    } catch (error) {
+        console.error("Error fetching user points:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
