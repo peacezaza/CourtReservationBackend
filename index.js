@@ -4,6 +4,8 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo} = require('./database')
 const {createToken} = require('./authentication')
+const {upload} = require('./image')
+
 
 const express = require('express')
 const app = express()
@@ -160,6 +162,12 @@ app.post('/signup',  async (req, res) => {
     }
 })
 
+
+app.post('/addStadium',upload.array("files"),  (req,res) =>{
+    console.log(req.body);
+    console.log("Uploaded Files:", req.files);
+    res.json({ message: "Upload successful!" });
+})
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to
     console.log(`Example app listening at http://${ip}:${port}`)

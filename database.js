@@ -96,6 +96,10 @@ async function getUserInfo(data, column){
 
 }
 
+async function addStadium(name, phone, location, open_hour, close_hour, link, availability, owner_id){
+
+}
+
 
 
 
