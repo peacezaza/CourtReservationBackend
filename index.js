@@ -98,10 +98,11 @@ app.post('/login', async (req, res) => {
 })
 
 app.post('/signup',  async (req, res) => {
-    username = req.body.username;
-    email = req.body.email;
-    password = req.body.password;
-    user_type = req.body.user_type;
+    let username = req.body.username;
+    let email = req.body.email;
+    let password = req.body.password;
+    let user_type = req.body.user_type;
+    let points = req.body.points;
 
 
     console.log("Email: ", email, "\n","Username ", username, "\n", "Password: ", password, "\n", "User_type", user_type,  "\n");
@@ -109,7 +110,8 @@ app.post('/signup',  async (req, res) => {
 
     if(username !== undefined){
         if (!(await checkDuplicate(email, "email", "user")) && !(await checkDuplicate(username, "username", "user"))) {
-            console.log(await insertNewUser(username, email, password, user_type));
+            // console.log(await insertNewUser(username, email, password, user_type,points));
+            await insertNewUser(username, email, password, user_type,points)
             const data = await getUserInfo(email, "email")
             const token = createToken(data);
             return res.status(201).json({
@@ -142,7 +144,8 @@ app.post('/signup',  async (req, res) => {
 
     }else{
         if (!(await checkDuplicate(email, "email", "user"))) {
-            console.log(await insertNewUser(username, email, password, user_type));
+            // console.log(await insertNewUser(username, email, password, user_type, points));
+            await insertNewUser(username, email, password, user_type, points)
             console.log("Inserted Success")
             const data = await getUserInfo(email, "email")
             const token = createToken(data);
