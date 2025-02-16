@@ -2,9 +2,10 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo} = require('./database')
-const {createToken} = require('./authentication')
-const {upload} = require('./image')
+const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo} = require('./database')
+const {createToken, decodeToken, authenticateToken} = require('./authentication')
+const {getCountryData, getStates} = require('./getData')
+const {upload, saveStadiumPhotos} = require('./image')
 
 
 const express = require('express')
@@ -14,6 +15,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.json());
 
 const port = 3000
 const ip = '0.0.0.0'
@@ -166,10 +168,80 @@ app.post('/signup',  async (req, res) => {
 })
 
 
-app.post('/addStadium',upload.array("files"),  (req,res) =>{
-    console.log(req.body);
-    console.log("Uploaded Files:", req.files);
-    res.json({ message: "Upload successful!" });
+app.post('/addStadium', authenticateToken, async (req,res) =>{
+    // console.log(req.body);
+    // console.log(req.headers.authorization)
+    // const userData = decodeToken(req.headers.authorization.split(" ")[1])
+    // console.log("Uploaded Files:", req.files);
+    // console.log(userData)
+    // res.json({ message: "Upload successful!" });
+
+    try{
+        upload.array("files")(req, res, async (err) => {
+            // console.log(req.files)
+
+            const name = req.body.stadium
+            const phone_number = req.body.phone;
+            const location = req.body.country.concat("," ,req.body.province ,",", req.body.district ,",", req.body.subDistrict, ",", req.body.zipCode)
+            const open_hour = (req.body.openHour);
+            const close_hour = (req.body.closeHour);
+            const link = req.body.addressLink
+            const availability = true;
+            const userData = decodeToken(req.headers.authorization.split(" ")[1])
+            const ownerId = userData.userData.id
+
+            // console.log(location);
+
+            if(!await checkDuplicate(location, "location", "stadium")){
+                const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
+                // console.log("Added Stadium ID: ", id)
+                if(id.insertId !== null){
+                    const stadiumData = await getStadiumInfo(id.insertId, "id", "stadium")
+                    await saveStadiumPhotos(id.insertId, req.files)
+                }else{
+                    return res.status(400).json({
+                        "status":false,
+                        "message":"error during insert stadium"
+                    })
+                }
+
+            }
+            else{
+                console.log("Duplicated Stadium")
+                return res.status(400).json({
+                    "status" : false,
+                    "message" : "Stadium already exists"
+                })
+            }
+
+        });
+
+
+        // console.log(userData.userData.id)
+        // console.log(req.body)
+
+
+        // console.log(location);
+
+        // if(!await checkDuplicate(location, "location", "stadium")){
+        //     const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
+        //     // console.log("Added Stadium ID: ", id.insertId)
+        //     const stadiumData = await getStadiumInfo(id.insertId, "id", "stadium")
+        //     console.log(stadiumData)
+        //
+        // }
+        // else{
+        //     console.log("Duplicated Stadium")
+        //     return res.status(400).json({
+        //         "status" : false,
+        //         "message" : "Stadium already exists"
+        //     })
+        // }
+
+        // await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
+    }catch(error){
+        console.log(error);
+    }
 })
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to

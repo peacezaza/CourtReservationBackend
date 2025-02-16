@@ -97,11 +97,52 @@ async function getUserInfo(data, column){
 
 }
 
-async function addStadium(name, phone, location, open_hour, close_hour, link, availability, owner_id){
+async function addStadium(name, phone_number, location, open_hour, close_hour, link, availability, owner_id){
 
+    try{
+        const query = "INSERT INTO stadium (name, phone_number, location, open_hour, close_hour, location_link, availability, owner_id) values (?, ?, ?, ?, ?, ?, ?, ?)"
+
+        const [result] = await connection.query(query, [name, phone_number, location, open_hour, close_hour, link, availability, owner_id])
+
+        // console.log(result)
+
+        return result
+    }
+    catch (error){
+        console.log(error);
+    }
+
+}
+
+async function getStadiumInfo(data, columns, table){
+
+    try{
+        const query = "SELECT * from ?? WHERE ?? = ?";
+        const [ rows ] = await connection.query(query, [table, columns, data])
+
+        console.log(rows)
+
+        return (rows.length > 0) ?  rows : null;
+    }
+    catch(error){
+
+    }
+}
+
+async function addStadiumPhoto(stadiumID, filePath){
+    try{
+        const query = "INSERT INTO picture (path, stadium_id) values(?, ?)"
+
+        const [ result ] = connection.query(query, [filePath, stadiumID]);
+
+        console.log(result)
+    }
+    catch (err){
+
+    }
 }
 
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo}
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto}
