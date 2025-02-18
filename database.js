@@ -120,7 +120,7 @@ async function getStadiumInfo(data, columns, table){
         const query = "SELECT * from ?? WHERE ?? = ?";
         const [ rows ] = await connection.query(query, [table, columns, data])
 
-        console.log(rows)
+        // console.log(rows)
 
         return (rows.length > 0) ?  rows : null;
     }
@@ -133,7 +133,7 @@ async function addStadiumPhoto(stadiumID, filePath){
     try{
         const query = "INSERT INTO picture (path, stadium_id) values(?, ?)"
 
-        const [ result ] = connection.query(query, [filePath, stadiumID]);
+        const [ result ] = await connection.query(query, [filePath, stadiumID]);
 
         console.log(result)
     }
@@ -142,7 +142,32 @@ async function addStadiumPhoto(stadiumID, filePath){
     }
 }
 
+async function addFacilityList(name){
+
+    try{
+        const query = "INSERT INTO facility (name) values(?)"
+
+        const [ result ] = await connection.query(query, [name])
+
+        // console.log(result)
+
+        return result
+    }
+    catch (error){
+        console.log(error)
+    }
+}
+
+async function addStadiumFacility(stadiumId, facilityId){
+    try{
+        const query = "INSERT INTO stadium_facility (stadium_id, facility_id) values (stadium_id, facility_id)"
+
+        const [ result ] = await connection.query(q)
+    }
+}
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto}
+
+
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList}

@@ -2,7 +2,7 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo} = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -169,16 +169,12 @@ app.post('/signup',  async (req, res) => {
 
 
 app.post('/addStadium', authenticateToken, async (req,res) =>{
-    // console.log(req.body);
-    // console.log(req.headers.authorization)
-    // const userData = decodeToken(req.headers.authorization.split(" ")[1])
-    // console.log("Uploaded Files:", req.files);
-    // console.log(userData)
-    // res.json({ message: "Upload successful!" });
 
     try{
         upload.array("files")(req, res, async (err) => {
             // console.log(req.files)
+
+            console.log(req.body)
 
             const name = req.body.stadium
             const phone_number = req.body.phone;
@@ -198,6 +194,23 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                 if(id.insertId !== null){
                     const stadiumData = await getStadiumInfo(id.insertId, "id", "stadium")
                     await saveStadiumPhotos(id.insertId, req.files)
+
+                    const facilities = req.body.selectedFacilities.split(",")
+
+                    //For insert facility type into facility table
+                    // for(const facility of facilities){
+                    //     if(!await checkDuplicate(facility, "name", "facility")){
+                    //         const result = await addFacilityList(facility)
+                    //         console.log(result)
+                    //     }else{
+                    //         console.log("Duplicated Facility Type")
+                    //     }
+                    // }
+
+                    // for(const facility of facilities){
+                    //
+                    // }
+
                 }else{
                     return res.status(400).json({
                         "status":false,
@@ -214,31 +227,11 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                 })
             }
 
+
+
         });
 
 
-        // console.log(userData.userData.id)
-        // console.log(req.body)
-
-
-        // console.log(location);
-
-        // if(!await checkDuplicate(location, "location", "stadium")){
-        //     const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
-        //     // console.log("Added Stadium ID: ", id.insertId)
-        //     const stadiumData = await getStadiumInfo(id.insertId, "id", "stadium")
-        //     console.log(stadiumData)
-        //
-        // }
-        // else{
-        //     console.log("Duplicated Stadium")
-        //     return res.status(400).json({
-        //         "status" : false,
-        //         "message" : "Stadium already exists"
-        //     })
-        // }
-
-        // await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
     }catch(error){
         console.log(error);
     }
