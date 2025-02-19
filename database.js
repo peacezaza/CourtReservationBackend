@@ -135,7 +135,7 @@ async function addStadiumPhoto(stadiumID, filePath){
 
         const [ result ] = await connection.query(query, [filePath, stadiumID]);
 
-        console.log(result)
+        // console.log(result)
     }
     catch (err){
 
@@ -158,11 +158,29 @@ async function addFacilityList(name){
     }
 }
 
+async function getData(column, data){
+
+    try{
+        const query = "SELECT * FROM facility WHERE ?? = ?"
+        const [ result ] = await connection.query(query, [column, data]);
+
+        return (result.length > 0) ?  result : null;
+    }
+    catch(error){
+        console.log(error);
+    }
+}
+
 async function addStadiumFacility(stadiumId, facilityId){
     try{
-        const query = "INSERT INTO stadium_facility (stadium_id, facility_id) values (stadium_id, facility_id)"
+        const query = "INSERT INTO stadium_facility (stadium_id, facility_id) values (?, ?)"
 
-        const [ result ] = await connection.query(q)
+        const [ result ] = await connection.query(query, [stadiumId, facilityId])
+
+        return (result.affectedRows > 0) ?  result : null;
+    }
+    catch(error){
+        console.log(error);
     }
 }
 
@@ -170,4 +188,4 @@ async function addStadiumFacility(stadiumId, facilityId){
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList}
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData}

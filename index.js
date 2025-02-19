@@ -2,7 +2,7 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList} = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList, addStadiumFacility, getData} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -197,19 +197,41 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
 
                     const facilities = req.body.selectedFacilities.split(",")
 
-                    //For insert facility type into facility table
-                    // for(const facility of facilities){
-                    //     if(!await checkDuplicate(facility, "name", "facility")){
-                    //         const result = await addFacilityList(facility)
-                    //         console.log(result)
-                    //     }else{
-                    //         console.log("Duplicated Facility Type")
+                    // For insert facility type into facility table
+                    for(const facility of facilities){
+                        if(!await checkDuplicate(facility, "name", "facility")){
+                            const result = await addFacilityList(facility)
+                            // console.log(result)
+                        }else{
+                            console.log("Duplicated Facility Type")
+                        }
+                    }
+
+                    for(const facility of facilities){
+                        const facilityDetails = await getData("name", facility)
+                        // console.log(facilityDetails[0].id)
+                        if(facilityDetails !== null){
+                            if(await addStadiumFacility(id.insertId, facilityDetails[0].id) !== null){
+                                console.log("Inserted Stadium Facility Successfully\n")
+                            }
+                            else{
+                                console.log("Error during inserting Stadium Facility")
+                            }
+                        }
+                    }
+
+                    // console.log(req.body.selectedTypes)
+                    // console.log(req.body.typeDetails)
+
+                    const courtTypes = req.body.selecetedTypes;
+
+                    // for(const type of courtTypes){
+                    //     if(await checkDuplicate(type, "type", "court_type")){
+                    //
                     //     }
                     // }
 
-                    // for(const facility of facilities){
-                    //
-                    // }
+
 
                 }else{
                     return res.status(400).json({
