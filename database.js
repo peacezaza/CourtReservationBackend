@@ -1,3 +1,4 @@
+
 const {hashPassword, comparePassword} = require('./encryption')
 
 const mysql = require('mysql2/promise');
