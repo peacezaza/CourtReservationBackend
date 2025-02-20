@@ -1,4 +1,3 @@
-
 const {hashPassword, comparePassword} = require('./encryption')
 
 const mysql = require('mysql2/promise');
@@ -182,11 +181,67 @@ async function addStadiumFacility(stadiumId, facilityId){
     }
     catch(error){
         console.log(error);
+        return null
     }
+}
+
+async function addCourtType(type){
+    try{
+        const query = "INSERT INTO court_type (type) values (?)"
+        const [ result ] = await connection.query(query, [type])
+
+        return result;
+    }catch (error){
+        console.log(error);
+    }
+}
+
+async function getCourtType(columns, typeName){
+    try{
+        const query = "select * from court_type where ?? = ?"
+        const [ result ] = await connection.query(query,[columns, typeName])
+
+        return (result.length > 0) ? result : null
+    }catch (error){
+        console.log(error);
+        return null;
+    }
+}
+
+async function addCourt(stadiumId, courtTypeId, availability){
+    try{
+        const query = "INSERT INTO court (stadium_id, court_type_id, availability) values(?, ?, ?)"
+        const [ result ] = await connection.query(query, [stadiumId, courtTypeId, availability])
+
+        return (result.affectedRows >0) ? result : null;
+    }
+    catch (error){
+        console.log(error)
+        return null
+    }
+
+}
+
+async function addStadiumCourtType(stadiumId, courtTypeId, numberOfCourts, pricePerHour){
+
+    try{
+        const query = "INSERT INTO stadium_courttype (stadium_id, court_type_id, number_of_courts, price_per_hr) values (?, ?, ?, ?)"
+        const [ result ] = connection.query(query, [stadiumId, courtTypeId, numberOfCourts, pricePerHour])
+
+        return (result.affectedRows >0) ? result : null
+    }
+    catch (error){
+        console.log(error)
+        return null;
+    }
+
 }
 
 
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData}
+module.exports = {connectDatabase, checkDuplicate, insertNewUser,
+    login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto,
+    addFacilityList, addStadiumFacility, getData, addCourtType, getCourtType,
+    addCourt, addStadiumCourtType}
