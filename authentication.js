@@ -2,16 +2,16 @@
 
 const jwt = require('jsonwebtoken');
 
+const SECRET = "your_secret_key";
 
 function createToken(data){
-    const SECRET = "your_secret_key";
 
     const payload = {
         userData : data,
     }
 
     const options = {
-        expiresIn: "3h",
+        expiresIn: "24h",
     }
 
     const token = jwt.sign(payload, SECRET, options)
@@ -26,6 +26,8 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]
 
+    console.log(token)
+
     if (!token) return res.status(401).json({ message: 'Access Denied' });
 
     jwt.verify(token, SECRET, { expiresIn: '24h' },(err, user) => {
@@ -39,5 +41,11 @@ function authenticateToken(req, res, next) {
     });
 }
 
-module.exports = {createToken}
+function decodeToken(token){
+    const decodedToken = jwt.decode(token)
+
+    return decodedToken;
+}
+
+module.exports = {createToken, decodeToken, authenticateToken}
 

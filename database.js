@@ -1,3 +1,4 @@
+
 const {hashPassword, comparePassword} = require('./encryption')
 
 const mysql = require('mysql2/promise');
@@ -12,7 +13,7 @@ async function connectDatabase() {
             host: 'localhost',
             user: 'root',
             password: 'root',
-            database: 'mydb',
+            database: 'court_reservation',
             port: 3307
         })
     }
@@ -36,13 +37,14 @@ async function showtable(){
     }
 }
 
-async function insertNewUser(username, email, password, user_type,point){
+async function insertNewUser(username, email, password, user_type, point){
     try{
         const hashedPassword = await hashPassword(password)
-        console.log("Hash in insert: ", hashedPassword);
-        const query = "INSERT INTO user (username, email, password, user_type,point) values(?, ?, ?, ?, ?)"
-        const [result] = await connection.query(query, [username, email, hashedPassword, user_type , point]);
-        console.log('Insert successful, ID:', result.insertId);
+        // console.log("Hash in insert: ", hashedPassword);
+        const query = "INSERT INTO user (username, email, password, user_type, point) values(?, ?, ?, ?, ?)"
+        const [result] = await connection.query(query, [username, email, hashedPassword, user_type, point]);
+        // console.log('Insert successful, ID:', result.insertId);
+        // console.log("TEST TEST TEST\n")
     }
     catch (err){
         console.log(err);
@@ -77,7 +79,7 @@ async function login(data, column, password){
 }
 
 async function getUserInfo(data, column){
-    const query = "SELECT id, username, email, user_type,point FROM user WHERE ?? = ?"
+    const query = "SELECT id, username, email, user_type, point FROM user WHERE ?? = ?"
 
     try{
         const [rows] = await connection.query(query, [column, data]);
@@ -96,7 +98,95 @@ async function getUserInfo(data, column){
 
 }
 
+async function addStadium(name, phone_number, location, open_hour, close_hour, link, availability, owner_id){
+
+    try{
+        const query = "INSERT INTO stadium (name, phone_number, location, open_hour, close_hour, location_link, availability, owner_id) values (?, ?, ?, ?, ?, ?, ?, ?)"
+
+        const [result] = await connection.query(query, [name, phone_number, location, open_hour, close_hour, link, availability, owner_id])
+
+        // console.log(result)
+
+        return result
+    }
+    catch (error){
+        console.log(error);
+    }
+
+}
+
+async function getStadiumInfo(data, columns, table){
+
+    try{
+        const query = "SELECT * from ?? WHERE ?? = ?";
+        const [ rows ] = await connection.query(query, [table, columns, data])
+
+        // console.log(rows)
+
+        return (rows.length > 0) ?  rows : null;
+    }
+    catch(error){
+
+    }
+}
+
+async function addStadiumPhoto(stadiumID, filePath){
+    try{
+        const query = "INSERT INTO picture (path, stadium_id) values(?, ?)"
+
+        const [ result ] = await connection.query(query, [filePath, stadiumID]);
+
+        // console.log(result)
+    }
+    catch (err){
+
+    }
+}
+
+async function addFacilityList(name){
+
+    try{
+        const query = "INSERT INTO facility (name) values(?)"
+
+        const [ result ] = await connection.query(query, [name])
+
+        // console.log(result)
+
+        return result
+    }
+    catch (error){
+        console.log(error)
+    }
+}
+
+async function getData(column, data){
+
+    try{
+        const query = "SELECT * FROM facility WHERE ?? = ?"
+        const [ result ] = await connection.query(query, [column, data]);
+
+        return (result.length > 0) ?  result : null;
+    }
+    catch(error){
+        console.log(error);
+    }
+}
+
+async function addStadiumFacility(stadiumId, facilityId){
+    try{
+        const query = "INSERT INTO stadium_facility (stadium_id, facility_id) values (?, ?)"
+
+        const [ result ] = await connection.query(query, [stadiumId, facilityId])
+
+        return (result.affectedRows > 0) ?  result : null;
+    }
+    catch(error){
+        console.log(error);
+    }
+}
 
 
 
-module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo}
+
+
+module.exports = {connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData}
