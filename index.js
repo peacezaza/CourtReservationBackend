@@ -3,11 +3,14 @@
 
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
-    addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType} = require('./database')
+    addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
 
+const fs = require('fs');
+const path = require('path');
 
 const express = require('express')
 const app = express()
@@ -186,11 +189,13 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
             const availability = true;
             const userData = decodeToken(req.headers.authorization.split(" ")[1])
             const ownerId = userData.userData.id
+            const verify = 'not verify'
+            const rating = 0
 
             // console.log(location);
 
             if(!await checkDuplicate(location, "location", "stadium")){
-                const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId)
+                const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId, verify, rating)
                 if(id.insertId !== null){
                     const stadiumData = await getStadiumInfo(id.insertId, "id", "stadium")
                     await saveStadiumPhotos(id.insertId, req.files)
@@ -228,7 +233,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             const result = await addCourtType(type);
                             // console.log(result)
                             if(result.affectedRows >0){
-                                console.log("Inserted Court Type Success\n")
+                                // console.log("Inserted Court Type Success\n")
                             }else{
                                 console.log("Duplicated Court Type\n")
                             }
@@ -250,13 +255,9 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             const totalCourt = parseInt(data[0]);
                             const price = parseInt(data[1])
 
-                            console.log(typeof totalCourt)
-                            console.log(typeof price)
-                            console.log(courtTypeData[0].id)
-
                             const stadiumCourtTypeInsert = await addStadiumCourtType(id.insertId, courtTypeData[0].id, totalCourt, price)
                             if(stadiumCourtTypeInsert !== null){
-                                console.log("Inserted Stadium Court Type")
+                                // console.log("Inserted Stadium Court Type")
                             }else{
                                 console.log("Error during Inserting Stadium Court Type")
                             }
@@ -264,7 +265,10 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             for(let i = 0; i < totalCourt; i++){
                                 const result = await addCourt(id.insertId, courtTypeData[0].id, "available")
                                 if(result !== null){
-                                    console.log("Success added Court")
+                                    // console.log("Success added Court")
+                                }
+                                else{
+                                    console.log("Error during adding court")
                                 }
                             }
                         }else{
@@ -299,6 +303,107 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
         console.log(error);
     }
 })
+
+app.get("/getStadiumInfo", authenticateToken, async (req, res) => {
+    const userData = decodeToken(req.headers.authorization.split(" ")[1]);
+    // console.log(userData);
+
+    const stadiumDatas = await getStadiumWithTwoColumns("owner_id", userData.userData.id, "verify", "verified");
+    const stadiumPhoto = await getStadiumPhoto("stadium_id", stadiumDatas.id);
+
+    // for(const stadium of stadiumDatas) {
+    //     const stadiumPhoto = await getStadiumPhoto("stadium_id", stadium.id);
+    //
+    //     stadium.photos = await Promise.all(stadiumPhotos.map(async (photo) => {
+    //         const imagePath = path.join(__dirname, photo.path);
+    //         const imageBuffer = fs.readFileSync(imagePath);
+    //         return `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+    //     }));
+    // }
+
+    // console.log(stadiumDatas)
+    if(stadiumDatas !== null){
+        return res.status(200).json({
+            "status" : true,
+            "message" : "Successfully",
+            "data" : stadiumDatas
+        })
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "Error during getStadium"
+        })
+    }
+})
+
+app.get("/getStadiumForVerify", authenticateToken, async (req, res) => {
+    const userData = decodeToken(req.headers.authorization.split(" ")[1]);
+
+    const stadiumDatas = await getStadiumInfo("not verify", "verify", "stadium");
+
+    if(stadiumDatas !== null){
+        return res.status(200).json({
+            "status" : true,
+            "message" : "Verifying Stadium",
+            "data" : stadiumDatas
+        })
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "Error during getStadium"
+        })
+    }
+
+})
+
+app.post("/notifications", async (req, res) => {
+    const { user_id, notification } = req.body;
+
+    if (!user_id || !notification) {
+        return res.status(400).json({ error: "Missing user_id or notification" });
+    }
+
+    try {
+        const result = await insertNotification(user_id, notification);
+        res.status(201).json(result);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to insert notification" });
+    }
+});
+
+//ฟังก์ชันหลัก : Truemoney  ** ห้ามเเก้
+app.post('/redeem_voucher', async (req, res) => {
+    try {
+        const { phone, voucher } = req.body;
+
+        if (!phone || !voucher) {
+            return res.status(400).json({ success: false });
+        }
+
+        const result = await sentVoucherAmount(phone, voucher);
+
+        return res.status(200).json({
+            success: true,
+            message: "Voucher redeemed successfully",
+            amount: result.amount, // ดึงจำนวนเงินจาก API TrueMoney
+        });
+
+    } catch (error) {
+        console.error("Error redeeming voucher:", error);
+        return res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/exchange_point', async (req, res) => {
+    try {
+        const searchTerm = req.query.search || "";
+        const exchange_point = await getExchange_point(searchTerm);
+        res.json(exchange_point);
+    } catch (error) {
+        console.error("Error fetching exchange_point:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to
     console.log(`Example app listening at http://${ip}:${port}`)
