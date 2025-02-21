@@ -226,7 +226,7 @@ async function addStadiumCourtType(stadiumId, courtTypeId, numberOfCourts, price
 
     try{
         const query = "INSERT INTO stadium_courttype (stadium_id, court_type_id, number_of_courts, price_per_hr) values (?, ?, ?, ?)"
-        const [ result ] = connection.query(query, [stadiumId, courtTypeId, numberOfCourts, pricePerHour])
+        const [ result ] = await connection.query(query, [stadiumId, courtTypeId, numberOfCourts, pricePerHour])
 
         return (result.affectedRows >0) ? result : null
     }

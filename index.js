@@ -226,7 +226,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                     for(const type of courtTypes){
                         if(!await checkDuplicate(type, "type", "court_type")){
                             const result = await addCourtType(type);
-                            console.log(result)
+                            // console.log(result)
                             if(result.affectedRows >0){
                                 console.log("Inserted Court Type Success\n")
                             }else{
@@ -247,8 +247,12 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             for(const court in courtDetails[type]){
                                 data.push(courtDetails[type][court])
                             }
-                            const totalCourt = data[0];
-                            const price = data[1]
+                            const totalCourt = parseInt(data[0]);
+                            const price = parseInt(data[1])
+
+                            console.log(typeof totalCourt)
+                            console.log(typeof price)
+                            console.log(courtTypeData[0].id)
 
                             const stadiumCourtTypeInsert = await addStadiumCourtType(id.insertId, courtTypeData[0].id, totalCourt, price)
                             if(stadiumCourtTypeInsert !== null){
