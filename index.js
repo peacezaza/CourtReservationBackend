@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification ,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -402,6 +402,46 @@ app.get('/exchange_point', async (req, res) => {
     } catch (error) {
         console.error("Error fetching exchange_point:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.put("/update_exchange_point", async (req, res) => {
+    const { user_id, new_point } = req.body;
+
+    if (!user_id || new_point === undefined) {
+        return res.status(400).json({ error: "Missing user_id or new_point" });
+    }
+
+    try {
+        const result = await updateExchangePoint(user_id, new_point);
+        res.status(result.success ? 200 : 404).json(result);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to update exchange point" });
+    }
+});
+
+app.delete("/delete_exchange_point", async (req, res) => {
+    try {
+        const { user_id } = req.body;
+
+        if (!user_id) {
+            console.warn("⚠️ Missing user_id in request");
+            return res.status(400).json({ error: "Missing user_id" });
+        }
+
+        console.log(`🔍 Received request to delete user_id: ${user_id}`);
+
+        const result = await deleteExchangePoint(user_id);
+        if (!result.success) {
+            console.warn(`⚠️ Deletion failed: ${result.message}`);
+            return res.status(404).json(result);
+        }
+
+        console.log(`✅ Successfully deleted user_id: ${user_id}`);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("🔥 Unexpected Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
