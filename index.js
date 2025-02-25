@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification ,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification ,updateUserPoint,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -444,6 +444,32 @@ app.delete("/delete_exchange_point", async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+
+
+
+
+app.put('/topup', async (req, res) => {
+    const { user_id, amount } = req.body;
+
+    if (!user_id || isNaN(amount)) {
+        return res.status(400).json({ success: false, message: "Invalid input" });
+    }
+
+    const result = await updateUserPoint(user_id, amount);
+    res.json(result);
+});
+
+
+
+
+
+
+
+
+
+
+
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to
     console.log(`Example app listening at http://${ip}:${port}`)

@@ -306,9 +306,35 @@ async function getStadiumPhoto(column, data) {
 
 
 
+async function updateUserPoint(user_id, amount) {
+    try {
+        const query = "UPDATE user SET point = point + ? WHERE id = ?";
+        const [result] = await connection.query(query, [amount, user_id]);
+
+        if (result.affectedRows > 0) {
+            console.log(`Added ${amount} points to user_id: ${user_id}`);
+            return { success: true, message: "Point updated successfully" };
+        } else {
+            return { success: false, message: "User not found or no update needed" };
+        }
+    } catch (error) {
+        console.error("Error updating user points:", error);
+        return { success: false, message: "Database error" };
+    }
+}
+
+
+
+
+
+
+
+
+
+
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint , deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,updateUserPoint, deleteExchangePoint
 };
 
