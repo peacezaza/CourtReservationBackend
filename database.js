@@ -9,9 +9,9 @@ async function connectDatabase() {
         connection = await mysql.createConnection({
             host: 'localhost',
             user: 'root',
-            password: 'root',
+            password: '',
             database: 'court_reservation',
-            port: 3307
+            port: 3306
         });
     } catch (error) {
         console.log("Error while connecting database ", error);
@@ -325,6 +325,18 @@ async function updateUserPoint(user_id, amount) {
 
 
 
+async function getpoint(id) {
+    try {
+        const query = 'SELECT point FROM user WHERE id = ?';
+        const [result] = await connection.query(query, [id]);
+        return result;
+    } catch (error) {
+        console.error('Error while get:', error);
+    }
+}
+
+
+
 
 
 
@@ -335,6 +347,6 @@ async function updateUserPoint(user_id, amount) {
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,updateUserPoint, deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,updateUserPoint, getpoint,deleteExchangePoint
 };
 

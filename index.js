@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification ,updateUserPoint,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint ,updateUserPoint,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -462,11 +462,26 @@ app.put('/topup', async (req, res) => {
 
 
 
+app.get("/point", authenticateToken, async (req, res) => {
+    const user = decodeToken(req.headers.authorization.split(" ")[1]);
+    const id= user.userData.id;
+    console.log("print : ",user)
+    console.log("print : ",id)
+     const result = await getpoint(id);
+     return res.json(result);
+
+    console.log("test"); // แสดงใน console ของเซิร์ฟเวอร์
+     // ส่งข้อความ "test" ไปยัง Postman
+});
 
 
 
-
-
+app.get("/test", authenticateToken, async (req, res) => {
+    const userData = decodeToken(req.headers.authorization.split(" ")[1]);
+   
+    console.log("test"); // แสดงใน console ของเซิร์ฟเวอร์
+    res.send(userData); // ส่งข้อความ "test" ไปยัง Postman
+});
 
 
 
