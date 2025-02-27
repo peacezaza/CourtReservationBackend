@@ -336,6 +336,19 @@ async function getpoint(id) {
 }
 
 
+async function deposit(id, amount, type) {
+    try {
+        const query = 'INSERT INTO transactions (user_id, point, transaction_type, time) VALUES (?, ?, ?, NOW())';
+        const [result] = await connection.query(query, [id, amount, type]);
+        return result.insertId; // ส่งค่า insertId กลับไป
+    } catch (error) {
+        console.error('Error:', error);
+        throw error;
+    }
+}
+
+
+
 
 
 
@@ -347,6 +360,6 @@ async function getpoint(id) {
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

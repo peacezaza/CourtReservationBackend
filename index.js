@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint ,updateUserPoint,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint ,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -17,6 +17,7 @@ const app = express()
 
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { error } = require('console');
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
@@ -465,14 +466,36 @@ app.put('/topup', async (req, res) => {
 app.get("/point", authenticateToken, async (req, res) => {
     const user = decodeToken(req.headers.authorization.split(" ")[1]);
     const id= user.userData.id;
-    console.log("print : ",user)
-    console.log("print : ",id)
+  //  console.log("print : ",user)
+   // console.log("print : ",id)
      const result = await getpoint(id);
      return res.json(result);
 
     console.log("test"); // แสดงใน console ของเซิร์ฟเวอร์
      // ส่งข้อความ "test" ไปยัง Postman
 });
+
+
+app.post('/deposit', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, amount } = req.body;
+        if (!user_id || !amount) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const transactionId = await deposit(user_id, amount, "deposit");
+
+        return res.status(201).json({ success: true, message: 'Deposit successful', transaction_id: transactionId });
+       
+    } catch (error) {
+        console.error("Error:", error);
+        return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+    }
+});
+
+
+
+
 
 
 
@@ -482,6 +505,8 @@ app.get("/test", authenticateToken, async (req, res) => {
     console.log("test"); // แสดงใน console ของเซิร์ฟเวอร์
     res.send(userData); // ส่งข้อความ "test" ไปยัง Postman
 });
+
+
 
 
 
