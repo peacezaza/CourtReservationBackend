@@ -1,0 +1,19 @@
+{
+  "name": "@fortune-inc/tw-voucher",
+  "version": "1.0.11",
+  "description": "เติมเงิน Truewallet ด้วยซองอั่งเปา",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Chelos",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fortune-Inc/tw-voucher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fortune-Inc/tw-voucher/issues"
+  },
+  "homepage": "https://github.com/Fortune-Inc/tw-voucher#readme"
+}
