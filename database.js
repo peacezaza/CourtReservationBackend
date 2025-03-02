@@ -348,10 +348,90 @@ async function deposit(id, amount, type) {
 }
 
 
+async function getStadiumByLocation(column, verify){
+    try {
+        const query = `
+            SELECT s.*, GROUP_CONCAT(p.path) AS pictures
+            FROM stadium s
+            LEFT JOIN picture p ON s.id = p.stadium_id
+            WHERE  s.?? = ?
+            GROUP BY s.id`;
+
+        const [result] = await connection.query(query, [column, verify]);
+
+        if (result.length === 0) return null;
+
+        return result.map(stadium => ({
+            ...stadium,
+            pictures: stadium.pictures ? stadium.pictures.split(",") : []  // Convert to array
+        }));
+    } catch (error) {
+        console.error("Database error:", error);
+        return null;
+    }
+}
+
+
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    const toRad = (angle) => (Math.PI * angle) / 180;
+
+    const R = 6371; // รัศมีของโลกเป็นกิโลเมตร
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // คืนค่าระยะทางเป็นกิโลเมตร
+}
 
 
 
 
+
+
+
+async function getStadiumSortedByDistance(currentLatitude, currentLongitude, column, verify) {
+    try {
+        const query = `
+            SELECT s.*, GROUP_CONCAT(p.path) AS pictures,
+            GROUP_CONCAT(court_type.type) AS facility_type
+            FROM stadium s
+            LEFT JOIN picture p ON s.id = p.stadium_id
+            LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
+            LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
+            WHERE s.?? = ?
+            GROUP BY s.id`;
+
+        const [stadiums] = await connection.query(query, [column, verify]);
+
+        if (stadiums.length === 0) return null;
+
+        const processedStadiums = stadiums.map(stadium => {
+            const [latitude, longitude] = stadium.location_link.split(",").map(Number);
+
+            const distance = haversineDistance(currentLatitude, currentLongitude, latitude, longitude);
+
+            return {
+                ...stadium,
+                pictures: stadium.pictures ? stadium.pictures.split(",") : [],
+                distance: distance.toFixed(2) // Show 2 decimal places
+            };
+        });
+
+        processedStadiums.sort((a, b) => a.distance - b.distance);
+
+        return processedStadiums;
+    } catch (error) {
+        console.error("Database error:", error);
+        return null;
+    }
+}
 
 
 
@@ -360,6 +440,6 @@ async function deposit(id, amount, type) {
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

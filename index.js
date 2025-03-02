@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint ,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance ,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -499,15 +499,23 @@ app.post('/deposit', authenticateToken, async (req, res) => {
 
 
 
-app.get("/test", authenticateToken, async (req, res) => {
+app.get("/testdata", authenticateToken, async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]);
    
     console.log("test"); // แสดงใน console ของเซิร์ฟเวอร์
     res.send(userData); // ส่งข้อความ "test" ไปยัง Postman
 });
 
+app.get("/test", authenticateToken, async (req, res) => {
+    // const result = await getStadiumByLocation("verify", "verified")
+    const result = await getStadiumSortedByDistance(13.486005,101.0207411, "verify", "verified")
 
+    console.log(result)
 
+    return res.status(200).json({
+        "data": result
+    })
+})
 
 
 
