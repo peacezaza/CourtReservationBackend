@@ -433,13 +433,55 @@ async function getStadiumSortedByDistance(currentLatitude, currentLongitude, col
     }
 }
 
+async function getReservationsByUserId(userId) {
+    const query = `
+      SELECT reservation.*, stadium.name AS stadium_name
+      FROM reservation
+      JOIN stadium ON reservation.stadium_id = stadium.id
+      WHERE reservation.user_id = ?
+    `;
+    
+    try {
+      // ใช้ await กับ query เพื่อให้ได้ผลลัพธ์จากฐานข้อมูล
+      const [result] = await connection.query(query, [userId]);
+      
+      // ถ้าไม่พบผลลัพธ์
+      if (result.length === 0) {
+        console.log(`ไม่พบการจองสำหรับผู้ใช้ที่มี ID: ${userId}`);
+        return [];
+      }
+  
+      return result;  // คืนค่าผลลัพธ์การจอง
+    } catch (error) {
+      console.error('เกิดข้อผิดพลาดในการดึงข้อมูลการจอง:', error);
+      throw error;  // ขว้างข้อผิดพลาดออกไปเพื่อให้ฟังก์ชันที่เรียกใช้สามารถจัดการ
+    }
+  }
+  
 
+  async function addReview(stadium_id, user_id, rating, comment, date) {
+   
+  
+
+    try {
+        const query = `
+      INSERT INTO review (stadium_id, user_id, rating, comment, date)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+        const [result] = await connection.query(query, [stadium_id, user_id, rating, comment, date]);
+        return result;
+    } catch (error) {
+        console.error('Error while get:', error);
+    }
+}
+    
+  
 
 
 
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId, addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

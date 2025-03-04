@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance ,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getReservationsByUserId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -517,6 +517,63 @@ app.get("/test", authenticateToken, async (req, res) => {
     })
 })
 
+app.get('/reservations', authenticateToken, async (req, res) => {
+    try {
+      const user = decodeToken(req.headers.authorization.split(" ")[1]);
+      const id = user.userData.id;
+  
+      // เรียกใช้ฟังก์ชัน getReservationsByUserId ด้วย async/await
+      const reservations = await getReservationsByUserId(id);
+  
+      // ถ้าพบการจอง
+      if (reservations.length > 0) {
+        res.json(reservations);
+      } else {
+        res.status(404).send('ไม่พบการจองสำหรับผู้ใช้ที่ระบุ');
+      }
+    } catch (err) {
+      console.error('Error fetching reservations:', err);
+      res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+    }
+  });
+  
+
+
+  app.post('/add_review', authenticateToken,async (req, res) => {
+    const user = decodeToken(req.headers.authorization.split(" ")[1]);
+    const id = user.userData.id;
+    const { stadium_id, rating, comment, date } = req.body;
+  
+    try {
+      const result = await addReview(stadium_id, id, rating, comment, date);
+      const newReview = {
+        review_id: result.insertId,
+        stadium_id: stadium_id,
+        user_id: id,
+        rating: rating,
+        comment: comment,
+        date: date
+      };
+  
+      res.status(200).json({
+        message: 'Review added successfully!',
+        review: newReview
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: 'Failed to add review',
+        error: err.message,
+      });
+    }
+  });
+
+
+
+
+
+
+
+  
 
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to
