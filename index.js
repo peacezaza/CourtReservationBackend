@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getReservationsByUserId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -567,11 +567,34 @@ app.get('/reservations', authenticateToken, async (req, res) => {
     }
   });
 
+  
 
 
 
+  app.get('/reviews/:stadium_id', async (req, res) => {
+    const { stadium_id } = req.params;
 
+    try {
+        // เรียกใช้ฟังก์ชัน getReviewsByStadiumId เพื่อดึงข้อมูลรีวิว
+        const reviews = await getReviewsByStadiumId(stadium_id);
 
+        if (reviews.length > 0) {
+            res.status(200).json({
+                message: 'Reviews fetched successfully!',
+                data: reviews,
+            });
+        } else {
+            res.status(404).json({
+                message: 'No reviews found for this stadium.',
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error occurred while fetching reviews.',
+            error: error.message,
+        });
+    }
+});
 
   
 

@@ -435,7 +435,7 @@ async function getStadiumSortedByDistance(currentLatitude, currentLongitude, col
 
 async function getReservationsByUserId(userId) {
     const query = `
-      SELECT reservation.*, stadium.name AS stadium_name
+   SELECT reservation.*, stadium.name AS stadium_name
       FROM reservation
       JOIN stadium ON reservation.stadium_id = stadium.id
       WHERE reservation.user_id = ?
@@ -475,13 +475,23 @@ async function getReservationsByUserId(userId) {
     }
 }
     
+
   
 
-
+  async function getReviewsByStadiumId(stadium_id) {
+    try {
+        const query = 'SELECT * FROM review WHERE stadium_id = ?';
+        const [reviews] = await connection.execute(query, [stadium_id]);
+        return reviews;
+    } catch (error) {
+        console.error('Error fetching reviews:', error);
+        throw error;
+    }
+}
 
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId, addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId,getReviewsByStadiumId ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 
