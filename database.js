@@ -435,10 +435,19 @@ async function getStadiumSortedByDistance(currentLatitude, currentLongitude, col
 
 async function getReservationsByUserId(userId) {
     const query = `
-   SELECT reservation.*, stadium.name AS stadium_name
-      FROM reservation
-      JOIN stadium ON reservation.stadium_id = stadium.id
-      WHERE reservation.user_id = ?
+  SELECT reservation.*, 
+       stadium.name AS stadium_name,
+       court.id AS court_id,
+       court_type.type AS Type,
+       stadium_courttype.price_per_hr as price
+FROM reservation
+JOIN stadium ON reservation.stadium_id = stadium.id
+JOIN court ON reservation.court_id = court.id
+JOIN court_type ON court.court_type_id = court_type.id
+JOIN stadium_courttype 
+    ON stadium_courttype.stadium_id = reservation.stadium_id 
+    AND stadium_courttype.court_type_id = court_type.id
+WHERE reservation.user_id = ?;
     `;
     
     try {
@@ -489,9 +498,26 @@ async function getReservationsByUserId(userId) {
     }
 }
 
+
+async function getFacilitiesByStadium(stadium_id) {
+    try {
+        const query = `
+            SELECT f.id AS facility_id, f.name, sf.stadium_id
+            FROM facility f
+            JOIN stadium_facility sf ON f.id = sf.facility_id
+            WHERE sf.stadium_id = ?
+        `;
+        const [facilities] = await connection.execute(query, [stadium_id]);
+        return facilities;
+    } catch (error) {
+        console.error('Error fetching facilities:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId,getReviewsByStadiumId ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

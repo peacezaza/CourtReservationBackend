@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -597,6 +597,43 @@ app.get('/reservations', authenticateToken, async (req, res) => {
 });
 
   
+app.get('/stadium/:stadium_id/facilities', async (req, res) => {
+    const { stadium_id } = req.params;
+
+    try {
+        // เรียกใช้ฟังก์ชัน getFacilitiesByStadium เพื่อดึงข้อมูลสิ่งอำนวยความสะดวก
+        const facilities = await getFacilitiesByStadium(stadium_id);
+
+        if (facilities.length > 0) {
+            res.status(200).json({
+                message: 'Facilities fetched successfully!',
+                data: facilities,
+            });
+        } else {
+            res.status(404).json({
+                message: 'No facilities found for this stadium.',
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error occurred while fetching facilities.',
+            error: error.message,
+        });
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 app.listen(port,ip, () => { // Specifying the IP address to bind to
