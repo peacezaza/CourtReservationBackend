@@ -260,10 +260,10 @@ async function getCourtType(columns, typeName) {
     }
 }
 
-async function addCourt(stadiumId, courtTypeId, availability) {
+async function addCourt(stadiumId, courtTypeId, courtNumber, availability) {
     try {
-        const query = "INSERT INTO court (stadium_id, court_type_id, availability) values(?, ?, ?)";
-        const [result] = await connection.query(query, [stadiumId, courtTypeId, availability]);
+        const query = "INSERT INTO court (stadium_id, court_type_id,court_number, availability) values(?, ?, ?, ?)";
+        const [result] = await connection.query(query, [stadiumId, courtTypeId, courtNumber,  availability]);
         return (result.affectedRows > 0) ? result : null;
     } catch (error) {
         console.log(error);
@@ -515,9 +515,53 @@ async function getFacilitiesByStadium(stadium_id) {
     }
 }
 
+async function changePassword(id, oldPassword, newPassword) {
+    if (!id || !oldPassword || !newPassword) {
+        return { success: false, error: "Missing required fields" };
+    }
+
+    try {
+        // ดึงรหัสผ่านเก่าจากฐานข้อมูล
+        const [rows] = await connection.query("SELECT password FROM user WHERE id = ?", [id]);
+
+        if (rows.length === 0) {
+            return { success: false, error: "User not found" };
+        }
+
+        const hashedOldPassword = rows[0].password;
+
+        // ตรวจสอบว่ารหัสผ่านเก่าตรงกันหรือไม่
+        const isMatch = await comparePassword(oldPassword, hashedOldPassword);
+        if (!isMatch) {
+            return { success: false, error: "Old password is incorrect" };
+        }
+
+        // แฮชรหัสผ่านใหม่
+        const hashedNewPassword = await hashPassword(newPassword);
+
+        // อัปเดตรหัสผ่านใหม่ในฐานข้อมูล
+        await connection.query("UPDATE user SET password = ? WHERE id = ?", [hashedNewPassword, id]);
+
+        return { success: true };
+    } catch (err) {
+        console.error(err);
+        return { success: false, error: "Internal Server Error" };
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns, getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

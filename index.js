@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,changePassword,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -617,6 +617,95 @@ app.get('/stadium/:stadium_id/facilities', async (req, res) => {
     } catch (error) {
         res.status(500).json({
             message: 'Error occurred while fetching facilities.',
+            error: error.message,
+        });
+    }
+});
+
+
+
+
+app.post('/addReservation',authenticateToken, async (req, res) => {
+    // console.log(req.body)
+
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+    // console.log(user_id)
+
+
+
+    const { court_id, stadium_id, date, start_time, end_time, status } = req.body;
+
+    const court_data = await getData("court", "id", court_id)
+    // console.log(court_data[0])
+
+    if(court_data[0].availability !== "maintenance"){
+        if(!await checkReservationDuplicate(court_id, stadium_id, date, start_time, end_time, status)){
+            const result = await addReservation(court_id, stadium_id, date, user_id,start_time, end_time, status)
+            if(result !== null){
+                return res.status(200).json({
+                    "status" : true,
+                    "message" : "Successfully",
+                })
+            }else
+            {
+                return res.status(400).json({
+                    "status" : false,
+                    "message" : "query error Reservation"
+                })
+            }
+        }
+        else{
+            return res.status(400).json({
+                "status" : false,
+                "message" : "Duplicated"
+            })
+        }
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "court is maintenance"
+        })
+    }
+
+})
+
+
+
+app.put("/change_password", authenticateToken, async (req, res) => {
+    try {
+        // ตรวจสอบว่า req.body ไม่เป็น undefined
+        if (!req.body) {
+            return res.status(400).json({ message: "Invalid request body." });
+        }
+
+        const { oldPassword, newPassword } = req.body;
+        const user = decodeToken(req.headers.authorization.split(" ")[1]);
+
+        // ตรวจสอบว่ามี userData หรือไม่
+        if (!user || !user.userData || !user.userData.id) {
+            return res.status(400).json({ message: "Invalid user data." });
+        }
+
+        const id = user.userData.id;
+
+        // เรียกใช้ changePassword และรอผลลัพธ์
+        const result = await changePassword(id, oldPassword, newPassword);
+
+        // ตรวจสอบว่า result สำเร็จหรือไม่
+        if (result.success) {
+            return res.status(200).json({
+                message: "Password changed successfully!",
+            });
+        } else {
+            return res.status(400).json({
+                message: "Failed to change password.",
+                error: result.error,
+            });
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        return res.status(500).json({
+            message: "Error.",
             error: error.message,
         });
     }
