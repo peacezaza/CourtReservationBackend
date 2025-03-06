@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,changePassword,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -638,36 +638,73 @@ app.post('/addReservation',authenticateToken, async (req, res) => {
     const court_data = await getData("court", "id", court_id)
     // console.log(court_data[0])
 
-    if(court_data[0].availability !== "maintenance"){
-        if(!await checkReservationDuplicate(court_id, stadium_id, date, start_time, end_time, status)){
-            const result = await addReservation(court_id, stadium_id, date, user_id,start_time, end_time, status)
-            if(result !== null){
-                return res.status(200).json({
-                    "status" : true,
-                    "message" : "Successfully",
-                })
-            }else
-            {
+    if(court_data !== null){
+        if(court_data[0].availability !== "maintenance"){
+            if(!await checkReservationDuplicate(court_id, stadium_id, date, start_time, end_time, status)){
+                const result = await addReservation(court_id, stadium_id, date, user_id,start_time, end_time, status)
+                if(result !== null){
+                    return res.status(200).json({
+                        "status" : true,
+                        "message" : "Successfully",
+                    })
+                }else
+                {
+                    return res.status(400).json({
+                        "status" : false,
+                        "message" : "query error Reservation"
+                    })
+                }
+            }
+            else{
                 return res.status(400).json({
                     "status" : false,
-                    "message" : "query error Reservation"
+                    "message" : "Duplicated"
                 })
             }
-        }
-        else{
+        }else{
             return res.status(400).json({
                 "status" : false,
-                "message" : "Duplicated"
+                "message" : "court is maintenance"
             })
         }
     }else{
         return res.status(400).json({
             "status" : false,
-            "message" : "court is maintenance"
+            "message" : "Error during get Court"
         })
     }
 
 })
+
+
+app.get("/getCourtDetails", authenticateToken, async (req, res) => {
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+
+    const reservationData = await getCourtReservation(user_id)
+    // console.log(reservationData)
+
+    const stadiumData = await getStadiumData(user_id)
+    // console.log(stadiumData)
+
+    const stadiumCourtdata = await getStadiumCourtsData(user_id)
+    // console.log(stadiumCourtdata)
+
+
+    return res.status(200).json({
+        "reservationData": reservationData,
+        "stadiumData": stadiumData,
+        "stadiumCourtData" : stadiumCourtdata
+    })
+
+})
+
+
+
+
+
+
+
+
 
 
 

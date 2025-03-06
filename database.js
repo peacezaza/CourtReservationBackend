@@ -218,13 +218,14 @@ async function addFacilityList(name) {
     }
 }
 
-async function getData(column, data) {
+async function getData(table,column, data) {
     try {
-        const query = "SELECT * FROM facility WHERE ?? = ?";
-        const [result] = await connection.query(query, [column, data]);
+        const query = "SELECT * FROM ?? WHERE ?? = ?";
+        const [result] = await connection.query(query, [table, column, data]);
         return (result.length > 0) ? result : null;
     } catch (error) {
         console.log(error);
+        return null
     }
 }
 
@@ -442,8 +443,9 @@ async function getReservationsByUserId(userId) {
   SELECT reservation.*, 
        stadium.name AS stadium_name,
        court.id AS court_id,
+       court.court_number,  -- เพิ่มคอลัมน์ court_number
        court_type.type AS Type,
-       stadium_courttype.price_per_hr as price
+       stadium_courttype.price_per_hr AS price
 FROM reservation
 JOIN stadium ON reservation.stadium_id = stadium.id
 JOIN court ON reservation.court_id = court.id
@@ -555,8 +557,157 @@ async function changePassword(id, oldPassword, newPassword) {
 
 
 
+async function updateCourtStatus(court_id, status){
+
+    try{
+        const query = `
+        UPDATE court
+        SET availability = ?
+        Where id = ?
+        ;`;
+
+        const [ result ] = await connection.query(query, [status, court_id])
+
+        return (result.affectedRows > 0) ? result : null
+    }
+    catch (error){
+        console.log(error)
+        return null;
+    }
+}
 
 
+
+async function addReservation(court_id, stadium_id, date, user_id, start_time, end_time, status){
+
+    try{
+        const query = "INSERT INTO reservation (court_id, stadium_id, date, user_id, start_time, end_time, status) values (?,?,?,?,?,?,?)"
+        const [result] = await connection.query(query, [court_id, stadium_id, date, user_id, start_time, end_time, status])
+
+        return (result.affectedRows > 0) ? result : null;
+    }
+    catch (error) {
+        console.error("Error saving reservation:", error);
+        return null;
+    }
+}
+
+
+async function checkReservationDuplicate(court_id, stadium_id, date, user_id, start_time, end_time, status) {
+
+    try{
+        const query = "SELECT * FROM reservation where court_id = ? AND stadium_id = ? AND date = ? AND start_time = ? AND end_time = ? AND status = ?"
+        const [result] = await connection.query(query, [court_id, stadium_id, date, start_time, end_time, status])
+
+        return (result.length > 0);
+    }
+    catch (error) {
+        console.error("Error get reservation:", error);
+        return null;
+    }
+}
+
+
+async function getCourtReservation(user_id){
+    try{
+        const query = `
+    SELECT
+        court.id AS court_id,
+        stadium.id AS stadium_id,
+        stadium.name AS stadium_name,
+        court_type.type AS facility_type,
+        reservation.date AS reservation_date,
+        reservation.start_time AS start_time,
+        reservation.end_time AS end_time,
+        reservation.status AS reservation_status,
+        court.availability AS court_availability
+    FROM stadium
+    JOIN reservation ON reservation.stadium_id = stadium.id
+    JOIN court ON reservation.court_id = court.id
+    JOIN court_type ON court.court_type_id = court_type.id
+    WHERE stadium.owner_id = ?;
+`;
+
+
+        const [result] = await connection.query(query, [user_id])
+
+        return (result.length > 0) ? result : null;
+    }catch (error){
+        console.log(error)
+        return null;
+    }
+}
+
+async function getStadiumData(user_id){
+
+    try{
+        const query = `
+        SELECT
+            stadium.id AS id,
+            stadium.name AS stadium,
+            stadium.open_hour AS openHour,
+            stadium.close_hour AS closeHour
+            from stadium
+            
+        WHERE stadium.owner_id = ? AND stadium.verify = "verified"  ;
+        `;
+
+        const [result] = await connection.query(query, [user_id])
+
+        return (result.length > 0) ? result : null;
+
+    }catch (error) {
+        console.error("Error getStadiumData");
+        return null;
+    }
+}
+
+
+async function getStadiumCourtsData(user_id){
+
+    try{
+        const query = `
+        SELECT
+            stadium.id AS stadium_id,
+            court.id AS court_id,
+            stadium.name AS stadium,
+            court_type.type AS Facility_Type,
+            court.availability AS Status
+            from stadium
+            JOIN court ON court.stadium_id = stadium.id
+            JOIN court_type ON court.court_type_id = court_type.id
+            WHERE stadium.owner_id = ? AND stadium.verify = "verified";
+        `
+
+        const [result] = await connection.query(query, [user_id])
+
+        return (result.length > 0) ? result : null;
+    }catch (error){
+        console.log(error);
+        return null;
+    }
+}
+
+
+
+async function updateCourtStatus(court_id, status){
+
+    try{
+        const query = `
+        UPDATE court
+        SET availability = ?
+        Where id = ?
+        ;`;
+
+        const [ result ] = await connection.query(query, [status, court_id])
+
+        return (result.affectedRows > 0) ? result : null
+    }
+    catch (error){
+        console.log(error)
+        return null;
+    }
+}
 
 
 
@@ -566,6 +717,6 @@ async function changePassword(id, oldPassword, newPassword) {
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 
