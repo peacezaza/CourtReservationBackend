@@ -495,7 +495,9 @@ WHERE reservation.user_id = ?;
 
   async function getReviewsByStadiumId(stadium_id) {
     try {
-        const query = 'SELECT * FROM review WHERE stadium_id = ?';
+        const query = `
+            SELECT review.id, review.stadium_id, review.user_id, review.rating,   review.comment,  review.date,  user.username 
+            FROM review JOIN user ON review.user_id = user.id WHERE review.stadium_id = ? `;
         const [reviews] = await connection.execute(query, [stadium_id]);
         return reviews;
     } catch (error) {
