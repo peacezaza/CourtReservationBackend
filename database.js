@@ -712,7 +712,24 @@ async function updateCourtStatus(court_id, status){
     }
 }
 
+async function getCourt(court_id, date, start_time, end_time, status){
 
+    try{
+        const query = `
+        SELECT
+        *
+        FROM reservation
+        WHERE court_id = ? AND date = ? AND start_time = ? AND end_time = ?
+        ;`;
+        const [ result ] = await connection.query(query, [court_id, date, start_time, end_time]);
+
+        // return (result.affectedRows > 0) ? result : null;
+        return result
+    }catch (error){
+        console.log(error)
+        return null;
+    }
+}
 
 
 
@@ -720,6 +737,6 @@ async function updateCourtStatus(court_id, status){
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

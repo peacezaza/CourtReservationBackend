@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
