@@ -399,14 +399,18 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 async function getStadiumSortedByDistance(currentLatitude, currentLongitude, column, verify) {
     try {
         const query = `
-            SELECT s.*, GROUP_CONCAT(p.path) AS pictures,
-            GROUP_CONCAT(court_type.type) AS facility_type
-            FROM stadium s
-            LEFT JOIN picture p ON s.id = p.stadium_id
-            LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
-            LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
-            WHERE s.?? = ?
-            GROUP BY s.id`;
+            SELECT s.*, 
+       GROUP_CONCAT(DISTINCT p.path) AS pictures,
+       GROUP_CONCAT(DISTINCT court_type.type) AS facility_type,
+       u.email
+FROM stadium s
+LEFT JOIN picture p ON s.id = p.stadium_id
+LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
+LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
+LEFT JOIN user u ON s.owner_id = u.id  -- ตรวจสอบว่ามีคอลัมน์นี้ไหม
+WHERE s.?? = ?
+GROUP BY s.id, u.email;
+`;
 
         const [stadiums] = await connection.query(query, [column, verify]);
 

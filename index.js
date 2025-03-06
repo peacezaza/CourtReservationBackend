@@ -506,7 +506,7 @@ app.get("/testdata", authenticateToken, async (req, res) => {
     res.send(userData); // ส่งข้อความ "test" ไปยัง Postman
 });
 
-app.get("/test", authenticateToken, async (req, res) => {
+app.get("/home", authenticateToken, async (req, res) => {
     // const result = await getStadiumByLocation("verify", "verified")
     const result = await getStadiumSortedByDistance(13.486005,101.0207411, "verify", "verified")
 
