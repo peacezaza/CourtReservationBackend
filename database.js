@@ -443,9 +443,10 @@ async function getReservationsByUserId(userId) {
   SELECT reservation.*, 
        stadium.name AS stadium_name,
        court.id AS court_id,
-       court.court_number,  -- เพิ่มคอลัมน์ court_number
+       court.court_number,
        court_type.type AS Type,
-       stadium_courttype.price_per_hr AS price
+       stadium_courttype.price_per_hr AS price,
+       GROUP_CONCAT(DISTINCT picture.path) AS pictures  -- รวม path ของรูปภาพ
 FROM reservation
 JOIN stadium ON reservation.stadium_id = stadium.id
 JOIN court ON reservation.court_id = court.id
@@ -453,7 +454,10 @@ JOIN court_type ON court.court_type_id = court_type.id
 JOIN stadium_courttype 
     ON stadium_courttype.stadium_id = reservation.stadium_id 
     AND stadium_courttype.court_type_id = court_type.id
-WHERE reservation.user_id = ?;
+LEFT JOIN picture ON picture.stadium_id = stadium.id  -- เชื่อมกับรูปภาพของสนาม
+WHERE reservation.user_id = ?
+GROUP BY reservation.id, stadium.id, court.id, court_type.id, stadium_courttype.price_per_hr;
+
     `;
     
     try {
