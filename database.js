@@ -595,7 +595,7 @@ async function addReservation(court_id, stadium_id, date, user_id, start_time, e
 }
 
 
-async function checkReservationDuplicate(court_id, stadium_id, date, user_id, start_time, end_time, status) {
+async function checkReservationDuplicate(court_id, stadium_id, date, start_time, end_time, status) {
 
     try{
         const query = "SELECT * FROM reservation where court_id = ? AND stadium_id = ? AND date = ? AND start_time = ? AND end_time = ? AND status = ?"
@@ -608,6 +608,7 @@ async function checkReservationDuplicate(court_id, stadium_id, date, user_id, st
         return null;
     }
 }
+
 
 
 async function getCourtReservation(user_id){
