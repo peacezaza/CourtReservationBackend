@@ -482,20 +482,67 @@ GROUP BY reservation.id, stadium.id, court.id, court_type.id, stadium_courttype.
   
 
   async function addReview(stadium_id, user_id, rating, comment, date) {
-   
-  
-
     try {
         const query = `
-      INSERT INTO review (stadium_id, user_id, rating, comment, date)
-      VALUES (?, ?, ?, ?, ?)
-    `;
+        INSERT INTO review (stadium_id, user_id, rating, comment, date)
+        VALUES (?, ?, ?, ?, ?)
+        `;
         const [result] = await connection.query(query, [stadium_id, user_id, rating, comment, date]);
         return result;
     } catch (error) {
-        console.error('Error while get:', error);
+        console.error('Error adding review:', error);
+        throw error;
     }
 }
+
+
+async function getCurrentRating(stadium_id) {
+    try {
+        const query = `
+        SELECT rating
+        FROM stadium
+        WHERE id = ?;
+        `;
+        const [result] = await connection.query(query, [stadium_id]);
+        return result[0];  // คืนค่า rating จาก stadium
+    } catch (error) {
+        console.error('Error fetching current rating:', error);
+        throw error;
+    }
+}
+
+
+// อัปเดตค่าเฉลี่ย rating ใน stadium
+async function updateStadiumRating(stadium_id, avg_rating) {
+    try {
+        const query = `
+        UPDATE stadium
+        SET rating = ?
+        WHERE id = ?;
+        `;
+        await connection.query(query, [avg_rating, stadium_id]);
+    } catch (error) {
+        console.error('Error updating stadium rating:', error);
+        throw error;
+    }
+}
+
+async function getAverageRating(stadium_id) {
+    try {
+        const query = `
+        SELECT ROUND(AVG(rating), 1) AS avg_rating
+        FROM review
+        WHERE stadium_id = ? AND rating IS NOT NULL;
+        `;
+        const [result] = await connection.query(query, [stadium_id]);
+        return { avg_rating: result[0].avg_rating };
+    } catch (error) {
+        console.error('Error calculating average rating:', error);
+        throw error;
+    }
+}
+
+
     
 
   
@@ -805,13 +852,413 @@ async function getStadiumCourtsDataBooking(user_id) {
 }
 
 
+// ฟังก์ชันสำหรับเพิ่มสมาชิกในห้องปาร์ตี้
+function addMemberToParty(partyId, username) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE party
+        SET current_members = current_members + 1
+        WHERE id = ? AND current_members < total_members
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        if (results.affectedRows === 0) return reject(new Error('Party is full or does not exist'));
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับบันทึกสมาชิกในตาราง party_members
+  function addPartyMember(partyId, username) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT INTO party_members (party_id, username)
+        VALUES (?, ?)
+      `;
+      connection.query(query, [partyId, username], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
+  function checkPartyFull(partyId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT current_members, total_members, price_per_person
+        FROM party
+        WHERE id = ?
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results[0]);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับหักคะแนนจากผู้ใช้
+  function deductPointsFromUsers(partyId, pricePerPerson) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE user
+        SET point = point - ?
+        WHERE username IN (
+          SELECT leader_username FROM party WHERE id = ?
+          UNION
+          SELECT username FROM party_members WHERE party_id = ?
+        )
+      `;
+      connection.query(query, [pricePerPerson, partyId, partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับอัปเดตสถานะห้องปาร์ตี้เป็น completed
+  function updatePartyStatus(partyId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE party
+        SET status = 'completed'
+        WHERE id = ?
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  
+
+
+
+  async function createParty(leaderUsername, courtId, totalMembers, pricePerPerson, userId) {
+    try {
+        // ตรวจสอบคะแนนของผู้สร้างห้องปาร์ตี้
+        const [userResults] = await connection.query(`
+            SELECT point
+            FROM user
+            WHERE id = ?
+        `, [userId]);
+
+        if (userResults.length === 0) {
+            throw new Error('User not found');
+        }
+
+        const userPoints = userResults[0].point;
+
+        // ตรวจสอบว่าผู้ใช้มีคะแนนเพียงพอหรือไม่
+        if (userPoints < pricePerPerson) {
+            throw new Error('Leader does not have enough points to create the party');
+        }
+
+        // สร้างห้องปาร์ตี้
+        const [partyResults] = await connection.query(`
+            INSERT INTO party (leader_username, court_id, total_members, current_members, price_per_person)
+            VALUES (?, ?, ?, 1, ?)
+        `, [leaderUsername, courtId, totalMembers, pricePerPerson]);
+
+        const partyId = partyResults.insertId;
+
+        // บันทึกผู้สร้างห้องปาร์ตี้เป็นสมาชิกคนแรก
+        await connection.query(`
+            INSERT INTO party_members (party_id, username)
+            VALUES (?, ?)
+        `, [partyId, leaderUsername]);
+
+        // หักคะแนนจากผู้สร้างห้องปาร์ตี้
+        await connection.query(`
+            UPDATE user
+            SET point = point - ?
+            WHERE id = ?
+        `, [pricePerPerson, userId]);
+
+        return partyId;
+    } catch (error) {
+        console.error("Error in createParty:", error);
+        throw error;
+    }
+}
+
+
+  function refundPoints(username, points) {
+    return new Promise((resolve, reject) => {
+      pool.getConnection((err, connection) => {
+        if (err) return reject(err);
+  
+        const query = `
+          UPDATE user
+          SET point = point + ?
+          WHERE username = ?
+        `;
+        connection.query(query, [points, username], (err, results) => {
+          connection.release();
+          if (err) return reject(err);
+          resolve(results);
+        });
+      });
+    });
+  }
+
+
+  
+  // ฟังก์ชันสำหรับเพิ่มสมาชิกในห้องปาร์ตี้
+  function addMemberToParty(partyId, username) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE party
+        SET current_members = current_members + 1
+        WHERE id = ? AND current_members < total_members
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        if (results.affectedRows === 0) return reject(new Error('Party is full or does not exist'));
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับบันทึกสมาชิกในตาราง party_members
+  function addPartyMember(partyId, username) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT INTO party_members (party_id, username)
+        VALUES (?, ?)
+      `;
+      connection.query(query, [partyId, username], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
+  function checkPartyFull(partyId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT current_members, total_members, price_per_person
+        FROM party
+        WHERE id = ?
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results[0]);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับหักคะแนนจากผู้ใช้
+  function deductPointsFromUsers(partyId, pricePerPerson) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE user
+        SET point = point - ?
+        WHERE username IN (
+          SELECT leader_username FROM party WHERE id = ?
+          UNION
+          SELECT username FROM party_members WHERE party_id = ?
+        )
+      `;
+      connection.query(query, [pricePerPerson, partyId, partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับอัปเดตสถานะห้องปาร์ตี้เป็น completed
+  function updatePartyStatus(partyId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE party
+        SET status = 'completed'
+        WHERE id = ?
+      `;
+      connection.query(query, [partyId], (err, results) => {
+        if (err) return reject(err);
+        resolve(results);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับตรวจสอบคะแนนของผู้ใช้
+  // ฟังก์ชันสำหรับตรวจสอบคะแนนของผู้ใช้
+function checkUserPoints(username) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT point
+        FROM user
+        WHERE username = ?
+      `;
+      connection.query(query, [username], (err, results) => {
+        if (err) return reject(err);
+        if (results.length === 0) return reject(new Error('User not found'));
+        resolve(results[0]);
+      });
+    });
+  }
+  
+  // ฟังก์ชันสำหรับออกจากห้องปาร์ตี้
+  function leaveParty(partyId, username) {
+    return new Promise((resolve, reject) => {
+      // ลบผู้ใช้ออกจากตาราง party_members
+      const removeMemberQuery = `
+        DELETE FROM party_members
+        WHERE party_id = ? AND username = ?
+      `;
+      connection.query(removeMemberQuery, [partyId, username], (err, results) => {
+        if (err) return reject(err);
+        if (results.affectedRows === 0) return reject(new Error('User is not a member of this party'));
+  
+        // ลดจำนวน current_members ในตาราง party
+        const decreaseMembersQuery = `
+          UPDATE party
+          SET current_members = current_members - 1
+          WHERE id = ?
+        `;
+        connection.query(decreaseMembersQuery, [partyId], (err, results) => {
+          if (err) return reject(err);
+  
+          // คืนคะแนนให้ผู้ใช้
+          const getPriceQuery = `
+            SELECT price_per_person
+            FROM party
+            WHERE id = ?
+          `;
+          connection.query(getPriceQuery, [partyId], (err, results) => {
+            if (err) return reject(err);
+  
+            const pricePerPerson = results[0].price_per_person;
+  
+            // คืนคะแนนให้ผู้ใช้
+            const refundPointsQuery = `
+              UPDATE user
+              SET point = point + ?
+              WHERE username = ?
+            `;
+            connection.query(refundPointsQuery, [pricePerPerson, username], (err, results) => {
+              if (err) return reject(err);
+              resolve(results);
+            });
+          });
+        });
+      });
+    });
+  }
+
+  async function joinParty(partyId, username) {
+    try {
+        // ตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
+        const [partyResults] = await connection.query(`
+            SELECT current_members, total_members, price_per_person
+            FROM party
+            WHERE id = ?
+        `, [partyId]);
+
+        if (partyResults.length === 0) {
+            throw new Error('Party not found');
+        }
+
+        const { current_members, total_members, price_per_person } = partyResults[0];
+
+        if (current_members >= total_members) {
+            throw new Error('Party is full');
+        }
+
+        // ตรวจสอบคะแนนของผู้ใช้
+        const [userResults] = await connection.query(`
+            SELECT point
+            FROM user
+            WHERE username = ?
+        `, [username]);
+
+        if (userResults.length === 0) {
+            throw new Error('User not found');
+        }
+
+        const userPoints = userResults[0].point;
+
+        if (userPoints < price_per_person) {
+            throw new Error('User does not have enough points to join the party');
+        }
+
+        // เพิ่มสมาชิกในห้องปาร์ตี้
+        await connection.query(`
+            UPDATE party
+            SET current_members = current_members + 1
+            WHERE id = ?
+        `, [partyId]);
+
+        // บันทึกสมาชิกในตาราง party_members
+        await connection.query(`
+            INSERT INTO party_members (party_id, username)
+            VALUES (?, ?)
+        `, [partyId, username]);
+
+        // หักคะแนนจากผู้ใช้
+        await connection.query(`
+            UPDATE user
+            SET point = point - ?
+            WHERE username = ?
+        `, [price_per_person, username]);
+
+        // ตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
+        if (current_members + 1 === total_members) {
+            // ห้องปาร์ตี้เต็มแล้ว -> อัปเดตสถานะเป็น completed
+            await connection.query(`
+                UPDATE party
+                SET status = 'completed'
+                WHERE id = ?
+            `, [partyId]);
+        }
+
+        return { message: 'Joined party successfully' };
+    } catch (error) {
+        console.error("Error in joinParty:", error);
+        throw error;
+    }
+}
+
+
+
+async function getPartyMembers(partyId) {
+    try {
+        // ดึงข้อมูลสมาชิกทั้งหมดในห้องปาร์ตี้
+        const [members] = await connection.query(`
+            SELECT username
+            FROM party_members
+            WHERE party_id = ?
+            ORDER BY username = (SELECT leader_username FROM party WHERE id = ?) DESC
+        `, [partyId, partyId]);
+
+        return members;
+    } catch (error) {
+        console.error("Error in getPartyMembers:", error);
+        throw error;
+    }
+}
 
 
 
 
 module.exports = {
-    connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
+    connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,getPartyMembers,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType,getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,
+    addPartyMember,createParty,
+    addMemberToParty,
+    
+    checkPartyFull,joinParty,
+  
+    updatePartyStatus,
+    checkUserPoints,
+    leaveParty,
+    
+    deductPointsFromUsers,refundPoints,
+    
+   getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

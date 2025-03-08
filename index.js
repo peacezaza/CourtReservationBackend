@@ -2,9 +2,17 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,
-    addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount ,getBookingData, insertNotification,getpoint,getStadiumSortedByDistancemobile,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
+    addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateStadiumRating ,getBookingData,createParty,refundPoints,
+    addMemberToParty,joinParty,
+    addPartyMember,
+   
+    
+   
+   
+    leaveParty,
+    checkPartyFull,deductPointsFromUsers,updatePartyStatus,checkUserPoints, insertNotification,getpoint,getStadiumSortedByDistancemobile,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -540,33 +548,36 @@ app.get('/reservations', authenticateToken, async (req, res) => {
   
 
 
-  app.post('/add_review', authenticateToken,async (req, res) => {
+  app.post('/add_review', authenticateToken, async (req, res) => {
     const user = decodeToken(req.headers.authorization.split(" ")[1]);
-    const id = user.userData.id;
+    const user_id = user.userData.id; 
     const { stadium_id, rating, comment, date } = req.body;
-  
+
     try {
-      const result = await addReview(stadium_id, id, rating, comment, date);
-      const newReview = {
-        review_id: result.insertId,
-        stadium_id: stadium_id,
-        user_id: id,
-        rating: rating,
-        comment: comment,
-        date: date
-      };
-  
-      res.status(200).json({
-        message: 'Review added successfully!',
-        review: newReview
-      });
+        // 1️⃣ เพิ่มรีวิวใหม่
+        const review_id = await addReview(stadium_id, user_id, rating, comment, date);
+
+        // 2️⃣ คำนวณค่าเฉลี่ยใหม่จากรีวิวทั้งหมดใน stadium
+        const { avg_rating } = await getAverageRating(stadium_id);
+
+        // 3️⃣ อัปเดตค่า rating ใหม่ใน stadium
+        await updateStadiumRating(stadium_id, avg_rating);
+
+        res.status(200).json({
+            message: 'Review added successfully!',
+            review: { review_id, stadium_id, user_id, rating, comment, date },
+            new_rating: avg_rating
+        });
+
     } catch (err) {
-      res.status(500).json({
-        message: 'Failed to add review',
-        error: err.message,
-      });
+        res.status(500).json({
+            message: 'Failed to add review',
+            error: err.message,
+        });
     }
-  });
+});
+
+
 
   
 
@@ -771,13 +782,93 @@ app.put("/change_password", authenticateToken, async (req, res) => {
 
 
 
+app.post('/party/:id/join', authenticateToken, async (req, res) => {
+    const user = req.user;
+    //const user_id = user.userData.id;
+    const username = user.userData.username;
+   
+    const partyId = req.params.id;
+   
+
+    try {
+        const result = await joinParty(partyId, username);
+        res.status(200).json(result);
+    } catch (err) {
+        if (err.message === 'Party not found') {
+            res.status(404).json({ error: err.message });
+        } else if (err.message === 'Party is full') {
+            res.status(400).json({ error: err.message });
+        } else if (err.message === 'User not found') {
+            res.status(404).json({ error: err.message });
+        } else if (err.message === 'User does not have enough points to join the party') {
+            res.status(400).json({ error: err.message });
+        } else {
+            res.status(500).json({ error: err.message });
+        }
+    }
+});
+
+
+  
+
+
+  
+
+
+  app.post('/party', authenticateToken, async (req, res) => {
+    const user = req.user;
+    const user_id = user.userData.id;
+    const leader_username = user.userData.username;
+    const { court_id, total_members, price_per_person } = req.body;
+
+    try {
+        const partyId = await createParty(leader_username, court_id, total_members, price_per_person, user_id);
+        res.status(201).json({ id: partyId, message: 'Party created successfully' });
+    } catch (err) {
+        if (err.message === 'Leader does not have enough points to create the party') {
+            res.status(400).json({ error: err.message });
+        } else if (err.message === 'User not found') {
+            res.status(404).json({ error: err.message });
+        } else {
+            res.status(500).json({ error: err.message });
+        }
+    }
+});
 
 
 
 
+    app.post('/party/:id/leave', authenticateToken, (req, res) => {
+        const user = decodeToken(req.headers.authorization.split(" ")[1]);
+    const user_id = user.userData.id; 
+    leader_username =user.userData.username;
+        const partyId = req.params.id;
+        
+      
+        try {
+          leaveParty(partyId, username);
+          res.json({ message: 'User has left the party and points have been refunded' });
+        } catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+      });
 
 
 
+      app.get('/getparty/:id/members', authenticateToken, async (req, res) => {
+        const partyId = req.params.id;
+    
+        try {
+            const members = await getPartyMembers(partyId);
+            res.status(200).json({ members });
+        } catch (err) {
+            if (err.message === 'Party not found') {
+                res.status(404).json({ error: err.message });
+            } else {
+                res.status(500).json({ error: err.message });
+            }
+        }
+    });
 
 
 
