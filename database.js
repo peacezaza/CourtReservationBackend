@@ -267,7 +267,7 @@ async function addCourt(stadiumId, courtTypeId, courtNumber, availability) {
         const [result] = await connection.query(query, [stadiumId, courtTypeId, courtNumber,  availability]);
         return (result.affectedRows > 0) ? result : null;
     } catch (error) {
-        console.log(error);
+        console.log(error); 
         return null;
     }
 }
@@ -397,18 +397,21 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 
 
-async function getStadiumSortedByDistance(currentLatitude, currentLongitude, column, verify) {
+async function getStadiumSortedByDistancemobile(currentLatitude, currentLongitude, column, verify) {
     try {
         const query = `
-            SELECT s.*, 
+           SELECT s.*, 
        GROUP_CONCAT(DISTINCT p.path) AS pictures,
        GROUP_CONCAT(DISTINCT court_type.type) AS facility_type,
+       GROUP_CONCAT(DISTINCT f.name) AS facility_names,
        u.email
 FROM stadium s
 LEFT JOIN picture p ON s.id = p.stadium_id
 LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
 LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
-LEFT JOIN user u ON s.owner_id = u.id  -- ตรวจสอบว่ามีคอลัมน์นี้ไหม
+LEFT JOIN stadium_facility sf ON s.id = sf.stadium_id
+LEFT JOIN facility f ON sf.facility_id = f.id
+LEFT JOIN user u ON s.owner_id = u.id
 WHERE s.?? = ?
 GROUP BY s.id, u.email;
 `;
@@ -738,9 +741,77 @@ async function getCourt(court_id, date, start_time, end_time, status){
 
 
 
+
+
+
+async function getBookingData(userId) {
+    try {
+        const query = `SELECT
+    reservation.id AS id,
+    user.first_name AS name,
+    user.phone_number AS contact,
+    stadium.name AS stadium,
+    court_type.type AS facility,
+    reservation.status AS status,
+    stadium_courttype.price_per_hr AS amount,
+    court.court_number AS courtnumber,
+    reservation.date AS date,
+    reservation.start_time as start_time,
+    reservation.end_time as end_time,
+    CONCAT(reservation.start_time, ' - ', reservation.end_time) AS time
+FROM reservation
+JOIN user ON user.id = reservation.user_id
+JOIN stadium ON stadium.id = reservation.stadium_id
+JOIN court ON court.id = reservation.court_id
+JOIN stadium_courttype 
+    ON stadium_courttype.stadium_id = reservation.stadium_id
+    AND stadium_courttype.court_type_id = court.court_type_id  -- 🔥 Ensure correct mapping!
+JOIN court_type ON court_type.id = stadium_courttype.court_type_id
+WHERE user.id = ?;
+        `;
+
+        const [result] = await connection.query(query, [userId]); // Execute query
+        return result.length > 0 ? result : null; // Return data or null if empty
+    } catch (error) {
+        console.error("Database error:", error);
+        return null;
+    }
+}
+
+
+async function getStadiumCourtsDataBooking(user_id) {
+    try {
+        const query = `
+        SELECT
+            stadium.id AS stadium_id,
+            court.id AS court_id,
+            stadium.name AS stadium,
+            court_type.type AS Facility_Type,
+            court.availability AS Status,
+            court.court_number  -- เพิ่มคอลัมน์ court_number จากตาราง court
+        FROM stadium
+        JOIN court ON court.stadium_id = stadium.id
+        JOIN court_type ON court.court_type_id = court_type.id
+        WHERE stadium.owner_id = ? AND stadium.verify = "verified";
+        `;
+
+        const [result] = await connection.query(query, [user_id]);
+
+        return (result.length > 0) ? result : null;
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+
+
+
+
+
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
-    addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistance,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+    addCourtType, getCourtType, addCourt, addStadiumCourtType,getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };
 

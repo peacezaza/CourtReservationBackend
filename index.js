@@ -2,9 +2,9 @@
 
 
 
-const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
+const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,
     addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification,getpoint,getStadiumSortedByDistance,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount ,getBookingData, insertNotification,getpoint,getStadiumSortedByDistancemobile,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -177,7 +177,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
 
     try{
         upload.array("files")(req, res, async (err) => {
-            // console.log(req.files)
+            // console.log(typeof req.files)
 
             console.log(req.body)
 
@@ -194,6 +194,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
             const rating = 0
 
             // console.log(location);
+            // console.log(req.body)
 
             if(!await checkDuplicate(location, "location", "stadium")){
                 const id = await addStadium(name, phone_number, location, open_hour, close_hour, link, availability, ownerId, verify, rating)
@@ -214,7 +215,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                     }
 
                     for(const facility of facilities){
-                        const facilityDetails = await getData("name", facility)
+                        const facilityDetails = await getData("facility","name", facility)
                         if(facilityDetails !== null){
                             if(await addStadiumFacility(id.insertId, facilityDetails[0].id) !== null){
                                 console.log("Inserted Stadium Facility Successfully\n")
@@ -264,7 +265,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             }
                             //Insert Court
                             for(let i = 0; i < totalCourt; i++){
-                                const result = await addCourt(id.insertId, courtTypeData[0].id, "available")
+                                const result = await addCourt(id.insertId, courtTypeData[0].id, i+1,"available")
                                 if(result !== null){
                                     // console.log("Success added Court")
                                 }
@@ -508,7 +509,7 @@ app.get("/testdata", authenticateToken, async (req, res) => {
 
 app.get("/home", authenticateToken, async (req, res) => {
     // const result = await getStadiumByLocation("verify", "verified")
-    const result = await getStadiumSortedByDistance(13.486005,101.0207411, "verify", "verified")
+    const result = await getStadiumSortedByDistancemobile(13.486005,101.0207411, "verify", "verified")
 
     console.log(result)
 
@@ -631,8 +632,6 @@ app.post('/addReservation',authenticateToken, async (req, res) => {
     const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
     // console.log(user_id)
 
-
-
     const { court_id, stadium_id, date, start_time, end_time, status } = req.body;
 
     const court_data = await getData("court", "id", court_id)
@@ -699,7 +698,28 @@ app.get("/getCourtDetails", authenticateToken, async (req, res) => {
 })
 
 
+app.get("/getCourtDetailsBooking/:stadium_id", authenticateToken, async (req, res) => {
+    //const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+    const { stadium_id } = req.params; // ดึงค่าพารามิเตอร์ stadium_id อย่างถูกต้อง
 
+   // console.log("User ID:", user_id);
+   // console.log("Stadium ID:", stadium_id);
+
+    if (!stadium_id) {
+        return res.status(400).json({ error: "stadium_id is required" });
+    }
+
+    const reservationData = await getCourtReservation( stadium_id);
+    const stadiumData = await getStadiumData( stadium_id);
+    const stadiumCourtdata = await getStadiumCourtsDataBooking(stadium_id);
+
+
+    return res.status(200).json({
+        "reservationData": reservationData,
+        "stadiumData": stadiumData,
+        "stadiumCourtData": stadiumCourtdata
+    });
+});
 
 
 
