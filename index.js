@@ -5,7 +5,7 @@
 const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
     addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
     getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,
-    getSelectedCartItems,
+    getSelectedCartItems,checkReserv,
     getUserBalance,
     createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,
     removeFromCart,
@@ -995,7 +995,21 @@ app.post('/cart/checkout', authenticateToken, async (req, res) => {
 });
 
 
+app.post("/checkout", authenticateToken, async (req, res) => {
+    const {  cart_id } = req.body;
+    const user_id = req.user.userData.id;
+    if (!user_id || !cart_id) {
+        return res.status(400).json({ success: false, message: "user_id and cart_id are required." });
+    }
 
+    const result = await checkoutCart(user_id, cart_id);
+
+    if (result.success) {
+        return res.status(200).json(result);
+    } else {
+        return res.status(400).json(result);
+    }
+});
 
 
 
