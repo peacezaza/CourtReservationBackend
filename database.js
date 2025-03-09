@@ -35,8 +35,11 @@ async function insertNewUser(username, email, password, user_type, point) {
         const query = "INSERT INTO user (username, email, password, user_type, point) values(?, ?, ?, ?, ?)";
         const [result] = await connection.query(query, [username, email, hashedPassword, user_type, point]);
         console.log('Insert successful, ID:', result.insertId);
+
+        return (result.affectedRows > 0) ? result : null
     } catch (err) {
         console.log(err);
+        return null;
     }
 }
 
@@ -1242,6 +1245,258 @@ async function getPartyMembers(partyId) {
 }
 
 
+async function addToCart(user_id, stadium_id, court_id, date, start_time, end_time) {
+    try {
+        const query = `
+            INSERT INTO cart (user_id, stadium_id, court_id, date, start_time, end_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        const [results] = await connection.query(query, [user_id, stadium_id, court_id, date, start_time, end_time]);
+        return results.insertId; // ส่งกลับ ID ของรายการที่เพิ่มเข้าไปในรถเข็น
+    } catch (error) {
+        console.error("Error adding item to cart:", error);
+        throw error;
+    }
+}
+
+async function getCartItems(user_id) {
+    try {
+        const query = `
+           SELECT 
+    c.id, 
+    c.stadium_id, 
+    c.court_id, 
+    c.date, 
+    c.start_time, 
+    c.end_time, 
+    c.status,
+    s.name AS stadium_name, 
+    ct.type AS court_type,
+    sc.price_per_hr AS point
+FROM cart c
+JOIN stadium s ON c.stadium_id = s.id
+JOIN court co ON c.court_id = co.id
+JOIN court_type ct ON co.court_type_id = ct.id
+JOIN stadium_courttype sc ON s.id = sc.stadium_id AND co.court_type_id = sc.court_type_id
+WHERE c.user_id = ? AND c.status = 'pending';
+        `;
+        const [cartItems] = await connection.query(query, [user_id]);
+        return cartItems; // ส่งกลับรายการทั้งหมดในรถเข็น
+    } catch (error) {
+        console.error("Error fetching cart items:", error);
+        throw error;
+    }
+}
+
+async function removeCartItem(cartId, user_id) {
+    try {
+        const query = `
+            DELETE FROM cart
+            WHERE id = ? AND user_id = ?
+        `;
+        const [results] = await connection.query(query, [cartId, user_id]);
+
+        if (results.affectedRows === 0) {
+            throw new Error('Cart item not found or you do not have permission to delete it');
+        }
+
+        return true; // ส่งกลับ true หากลบสำเร็จ
+    } catch (error) {
+        console.error("Error deleting cart item:", error);
+        throw error;
+    }
+}
+
+
+
+async function updateCartSelection(user_id, cartId, isSelected) {
+    console.log('🔹 Running updateCartSelection:', { user_id, cartId, isSelected });
+
+    const query = `
+        UPDATE cart
+        SET is_selected = ?
+        WHERE id = ? AND user_id = ?
+    `;
+
+    try {
+        const [results] = await connection.query(query, [isSelected, cartId, user_id]);
+        console.log('🔹 Database Result:', results);
+        return results;
+    } catch (error) {
+        console.error('❌ Database Error:', error);
+        throw error;
+    }
+}
+
+
+// ดึงรายการที่ถูกเลือกในตะกร้า
+async function getSelectedCartItems(user_id) {
+    const [selectedItems] = await connection.query(`
+        SELECT * FROM cart
+        WHERE user_id = ? AND is_selected = TRUE AND status = 'pending'
+    `, [user_id]);
+    return selectedItems;
+}
+
+// ดึงยอดเงินของผู้ใช้
+async function getUserBalance(user_id) {
+    const [userBalance] = await connection.query(`
+        SELECT point FROM user WHERE id = ?
+    `, [user_id]);
+    return userBalance.length ? userBalance[0].point : 0;
+}
+
+// เพิ่มรายการจองสนาม
+async function createReservation(user_id, item) {
+    await connection.query(`
+        INSERT INTO reservations (user_id, stadium_id, court_id, date, start_time, end_time, price)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [user_id, item.stadium_id, item.court_id, item.date, item.start_time, item.end_time, item.price]);
+}
+
+// ลบรายการออกจากตะกร้า
+async function removeFromCart(cartId) {
+    await connection.query(`
+        DELETE FROM cart WHERE id = ?
+    `, [cartId]);
+}
+
+// หักเงินจากบัญชีผู้ใช้
+async function deductUserBalance(user_id, amount) {
+    await connection.query(`
+        UPDATE user SET point = point - ? WHERE id = ?
+    `, [amount, user_id]);
+}
+
+
+async function checkoutCart(user_id) {
+    console.log('🔹 Running checkoutCart:', { user_id });
+    
+    try {
+        if (!connection) {
+            throw new Error('❌ Database connection is not available');
+        }
+    
+        await connection.beginTransaction(); // ✅ เริ่ม Transaction
+    
+        // 🔹 ดึงรายการที่เลือกไว้ในตะกร้า
+        const [selectedItems] = await connection.query(`
+            SELECT * FROM cart
+            WHERE user_id = ? AND is_selected = TRUE AND status = 'pending'
+        `, [user_id]);
+    
+        if (selectedItems.length === 0) {
+            throw new Error('No items selected for checkout');
+        }
+    
+        // 🔹 คำนวณยอดรวมที่ต้องชำระ
+        let totalAmount = 0;
+    
+        for (const item of selectedItems) {
+            // ดึงราคาต่อชั่วโมงจากตาราง stadium_courttype
+            const [courtPrice] = await connection.query(`
+                SELECT price_per_hr FROM stadium_courttype
+                WHERE stadium_id = ? AND court_type_id = (
+                    SELECT court_type_id FROM court WHERE id = ?
+                )
+            `, [item.stadium_id, item.court_id]);
+    
+            if (courtPrice.length === 0) {
+                throw new Error(`Price not found for court ${item.court_id}`);
+            }
+    
+            const pricePerHour = courtPrice[0].price_per_hr;
+    
+            // คำนวณจำนวนชั่วโมงที่จอง
+            const startTime = new Date(`1970-01-01T${item.start_time}`);
+            const endTime = new Date(`1970-01-01T${item.end_time}`);
+            const hours = (endTime - startTime) / (1000 * 60 * 60);
+    
+            // คำนวณราคารวมสำหรับรายการนี้
+            const itemTotal = pricePerHour * hours;
+            totalAmount += itemTotal;
+        }
+    
+        console.log('🔹 Total Amount:', totalAmount);
+    
+        // 🔹 ดึงยอดเงินของผู้ใช้
+        const [userBalance] = await connection.query(`
+            SELECT point FROM user WHERE id = ?
+        `, [user_id]);
+    
+        if (userBalance.length === 0) {
+            throw new Error('User not found');
+        }
+    
+        console.log('🔹 User Balance:', userBalance[0].point);
+    
+        if (userBalance[0].point < totalAmount) {
+            throw new Error('Insufficient balance'); // ❌ ยอดเงินไม่พอ
+        }
+    
+        // 🔹 ตรวจสอบว่าคอร์ทมีการจองเวลาซ้ำหรือไม่
+        for (const item of selectedItems) {
+            const [existingReservation] = await connection.query(`
+                SELECT id FROM reservation
+                WHERE court_id = ? AND date = ? AND (
+                    (start_time < ? AND end_time > ?) OR
+                    (start_time < ? AND end_time > ?) OR
+                    (start_time >= ? AND end_time <= ?)
+                )
+            `, [
+                item.court_id, item.date,
+                item.end_time, item.start_time,
+                item.start_time, item.end_time,
+                item.start_time, item.end_time
+            ]);
+    
+            if (existingReservation.length > 0) {
+                throw new Error(`Court ${item.court_id} is already booked for the selected time`);
+            }
+        }
+    
+        // 🔹 ย้ายรายการจาก `cart` ไป `reservation`
+        for (const item of selectedItems) {
+            await connection.query(`
+                INSERT INTO reservation (user_id, stadium_id, court_id, date, start_time, end_time, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
+            `, [user_id, item.stadium_id, item.court_id, item.date, item.start_time, item.end_time]);
+        }
+    
+        console.log('✅ Reservations created');
+    
+        // 🔹 หักเงินจากบัญชีผู้ใช้
+        await connection.query(`
+            UPDATE user SET point = point - ? WHERE id = ?
+        `, [totalAmount, user_id]);
+    
+        console.log('✅ Balance deducted');
+    
+        // 🔹 ลบรายการออกจากตะกร้า
+        await connection.query(`
+            DELETE FROM cart WHERE user_id = ? AND is_selected = TRUE
+        `, [user_id]);
+    
+        console.log('✅ Cart items removed');
+    
+        // ✅ Commit Transaction
+        await connection.commit();
+        console.log('✅ Transaction committed');
+    
+        return { success: true, message: 'Checkout successful', totalAmount };
+    } catch (error) {
+        // ❌ Rollback Transaction หากเกิดข้อผิดพลาด
+        if (connection) await connection.rollback();
+        console.error('❌ Transaction rolled back due to error:', error.message);
+        return { success: false, error: error.message };
+    } finally {
+        if (connection) await connection.end(); // ✅ ปิด connection
+    }
+    }
+
+
+
+
 
 
 module.exports = {
@@ -1257,7 +1512,12 @@ module.exports = {
     checkUserPoints,
     leaveParty,
     
-    deductPointsFromUsers,refundPoints,
+    deductPointsFromUsers,refundPoints,addToCart,getCartItems,removeCartItem,updateCartSelection,checkoutCart,
+    getSelectedCartItems,
+    getUserBalance,
+    createReservation,
+    removeFromCart,
+    deductUserBalance,
     
    getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
 };

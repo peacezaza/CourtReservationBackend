@@ -4,7 +4,12 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
     addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateStadiumRating ,getBookingData,createParty,refundPoints,
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart,
+    getSelectedCartItems,
+    getUserBalance,
+    createReservation,
+    removeFromCart,
+    deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,
     addMemberToParty,joinParty,
     addPartyMember,
    
@@ -123,17 +128,23 @@ app.post('/signup',  async (req, res) => {
     console.log("Email: ", email, "\n","Username ", username, "\n", "Password: ", password, "\n", "User_type", user_type,  "\n");
     // console.log(await checkDuplicate(email, "email", "user"))
 
-    if(username !== undefined){
+    if(user_type === "client"){
         if (!(await checkDuplicate(email, "email", "user")) && !(await checkDuplicate(username, "username", "user"))) {
             // console.log(await insertNewUser(username, email, password, user_type,points));
-            await insertNewUser(username, email, password, user_type,points)
-            const data = await getUserInfo(email, "email")
-            const token = createToken(data);
-            return res.status(201).json({
-                "success": true,
-                "message": "User successfully created",
-                "token": token
-            })
+            if(await insertNewUser(username, email, password, user_type,points) !== null){
+                const data = await getUserInfo(email, "email")
+                const token = createToken(data);
+                return res.status(201).json({
+                    "success": true,
+                    "message": "User successfully created",
+                    "token": token
+                })
+            }else{
+                return res.status(400).json({
+                    "success" : false,
+                    "message" : "Error during adding new user"
+                })
+            }
         }
         else if(await checkDuplicate(email, "email", "user") && await checkDuplicate(username, "username", "user")){
             console.log("Duplicated Email and User\n");
@@ -160,15 +171,21 @@ app.post('/signup',  async (req, res) => {
     }else{
         if (!(await checkDuplicate(email, "email", "user"))) {
             // console.log(await insertNewUser(username, email, password, user_type, points));
-            await insertNewUser(username, email, password, user_type, points)
-            console.log("Inserted Success")
-            const data = await getUserInfo(email, "email")
-            const token = createToken(data);
-            return res.status(201).json({
-                "success": true,
-                "message": "User successfully created",
-                "token" : token
-            })
+            if(await insertNewUser(username, email, password, user_type, points)!== null){
+                console.log("Inserted Success")
+                const data = await getUserInfo(email, "email")
+                const token = createToken(data);
+                return res.status(201).json({
+                    "success": true,
+                    "message": "User successfully created",
+                    "token" : token
+                })
+            }else{
+                return res.status(400).json({
+                    "success" : false,
+                    "message" : "Error during adding new user"
+                })
+            }
         }
         else{
             console.log("Duplicated Email \n");
@@ -869,6 +886,116 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
             }
         }
     });
+
+
+    app.post('/addcart', authenticateToken, async (req, res) => {
+        const user = req.user;
+        const user_id = user.userData.id;
+        const { stadium_id, court_id, date, start_time, end_time } = req.body;
+    
+        try {
+            const cartId = await addToCart(user_id, stadium_id, court_id, date, start_time, end_time);
+            res.status(201).json({ id: cartId, message: 'Item added to cart successfully' });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/getcart', authenticateToken, async (req, res) => {
+        const user = req.user;
+        const user_id = user.userData.id;
+    
+        try {
+            const cartItems = await getCartItems(user_id);
+            res.status(200).json({ cartItems });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.delete('/cart/:id', authenticateToken, async (req, res) => {
+        const cartId = req.params.id;
+        const user = req.user;
+        const user_id = user.userData.id;
+    
+        try {
+            await removeCartItem(cartId, user_id);
+            res.status(200).json({ message: 'Cart item deleted successfully' });
+        } catch (error) {
+            if (error.message === 'Cart item not found or you do not have permission to delete it') {
+                res.status(404).json({ error: error.message });
+            } else {
+                res.status(500).json({ error: error.message });
+            }
+        }
+    });
+
+
+    app.post('/api/cart/select', authenticateToken, async (req, res) => {
+    const user = req.user;
+    const user_id = user.userData.id;
+    const { cartId, isSelected } = req.body;
+
+    try {
+        const query = `
+            UPDATE cart
+            SET is_selected = ?
+            WHERE id = ? AND user_id = ?
+        `;
+        const [results] = await connection.query(query, [isSelected, cartId, user_id]);
+
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ error: 'Cart item not found or you do not have permission to select it' });
+        }
+
+        res.status(200).json({ message: 'Cart item selection updated successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+app.post('/cart/select', authenticateToken, async (req, res) => {
+    const user_id = req.user.userData.id;
+    const { cartId, isSelected } = req.body;
+
+    console.log('🔹 Received:', { user_id, cartId, isSelected });
+
+    if (cartId === undefined || isSelected === undefined) {
+        return res.status(400).json({ error: 'Missing cartId or isSelected' });
+    }
+
+    try {
+        const result = updateCartSelection(user_id, cartId, isSelected);
+        
+        console.log('🔹 Query Result:', result);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Cart item not found' });
+        }
+
+        res.status(200).json({ message: 'Cart item selection updated' });
+    } catch (error) {
+        console.error('❌ Error in /cart/select:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// Checkout สินค้าในตะกร้า
+app.post('/cart/checkout', authenticateToken, async (req, res) => {
+    try {
+        const user_id = req.user.userData.id;
+        const result = checkoutCart(user_id);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('❌ Checkout Error:', error);
+        res.status(400).json({ error: error.message });
+    }
+});
+
+
+
 
 
 
