@@ -1494,7 +1494,99 @@ async function checkoutCart(user_id) {
     }
     }
 
+    async function checkcourtDuplicate(stadium_id, date, start_time, end_time) {
+        try {
+            const query = `
+                SELECT court.id AS court_id
+                FROM court
+                JOIN reservation ON reservation.court_id = court.id
+                WHERE court.stadium_id = ?
+                AND reservation.date = ?
+                AND (
+                    (reservation.start_time < ? AND reservation.end_time > ?) OR  -- จองทับช่วงเวลาเริ่มต้น
+                    (reservation.start_time < ? AND reservation.end_time > ?) OR  -- จองทับช่วงเวลาสิ้นสุด
+                    (reservation.start_time >= ? AND reservation.end_time <= ?)    -- จองภายในช่วงเวลา
+                )
+                AND reservation.status = 'confirmed'
+            `;
+            
+            const [result] = await connection.query(query, [
+                stadium_id, 
+                date, 
+                end_time, start_time,  // สำหรับเงื่อนไขแรก
+                end_time, start_time,  // สำหรับเงื่อนไขที่สอง
+                start_time, end_time   // สำหรับเงื่อนไขที่สาม
+            ]);
+    
+            // คืนค่าเป็น array ของ court_id ที่ถูกจองแล้ว
+            return result.map(row => row.court_id);
+        } catch (error) {
+            console.error("Error checking reservation:", error);
+            return null;
+        }
+    }
 
+
+    async function getStadiumDatabystid(stadium_id) {
+        try {
+            const query = `
+                SELECT
+                    stadium.id AS id,
+                    stadium.name AS stadium,
+                    stadium.open_hour AS openHour,
+                    stadium.close_hour AS closeHour
+                FROM stadium
+                WHERE stadium.id = ? AND stadium.verify = "verified";
+            `;
+    
+            const [result] = await connection.query(query, [stadium_id]);
+    
+            return (result.length > 0) ? result[0] : null; // คืนค่าเฉพาะสนามที่ตรงกับ stadium_id
+        } catch (error) {
+            console.error("Error in getStadiumData:", error);
+            return null;
+        }
+    }
+
+    async function getStadiumCourtsDatabystid(stadium_id, type = null) {
+        try {
+            let query = `
+                SELECT
+                    stadium.id AS stadium_id,
+                    court.id AS court_id,
+                    court.court_number AS court_number,
+                    stadium.name AS stadium,
+                    court_type.type AS Facility_Type,
+                    court.availability AS Status,
+                    stadium_courttype.price_per_hr AS price
+                FROM stadium
+                JOIN court ON court.stadium_id = stadium.id
+                JOIN court_type ON court.court_type_id = court_type.id
+                JOIN stadium_courttype ON stadium_courttype.stadium_id = stadium.id 
+                    AND stadium_courttype.court_type_id = court_type.id
+                WHERE stadium.id = ? 
+                AND stadium.verify = "verified"
+            `;
+    
+            // เพิ่มเงื่อนไขกรอง type ถ้ามีการส่งค่า type มา
+            if (type) {
+                query += ` AND court_type.type = ?`;
+            }
+    
+            // เตรียมพารามิเตอร์สำหรับ query
+            const params = [stadium_id];
+            if (type) {
+                params.push(type);
+            }
+    
+            const [result] = await connection.query(query, params);
+    
+            return (result.length > 0) ? result : null;
+        } catch (error) {
+            console.error("Error in getStadiumCourtsData:", error);
+            return null;
+        }
+    }
 
 
 
@@ -1504,13 +1596,13 @@ module.exports = {
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,
     addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,
     addPartyMember,createParty,
-    addMemberToParty,
+    addMemberToParty, checkcourtDuplicate,
     
     checkPartyFull,joinParty,
   
-    updatePartyStatus,
+    updatePartyStatus,getStadiumCourtsDatabystid,
     checkUserPoints,
-    leaveParty,
+    leaveParty,getStadiumDatabystid,
     
     deductPointsFromUsers,refundPoints,addToCart,getCartItems,removeCartItem,updateCartSelection,checkoutCart,
     getSelectedCartItems,

@@ -4,10 +4,10 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
     addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart,
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,
     getSelectedCartItems,
     getUserBalance,
-    createReservation,
+    createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,
     removeFromCart,
     deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,
     addMemberToParty,joinParty,
@@ -726,21 +726,21 @@ app.get("/getCourtDetails", authenticateToken, async (req, res) => {
 })
 
 
-app.get("/getCourtDetailsBooking/:stadium_id", authenticateToken, async (req, res) => {
-    //const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
-    const { stadium_id } = req.params; // ดึงค่าพารามิเตอร์ stadium_id อย่างถูกต้อง
+app.post("/getCourtDetailsBooking", authenticateToken, async (req, res) => {
+    const { date, start, end, type, id_stadium } = req.body; // ดึงค่าจาก request body
 
-   // console.log("User ID:", user_id);
-   // console.log("Stadium ID:", stadium_id);
-
-    if (!stadium_id) {
-        return res.status(400).json({ error: "stadium_id is required" });
+    if (!date || !start || !end || !type || !id_stadium) {
+        return res.status(400).json({ error: "All fields (date, start, end, type, id_stadium) are required" });
     }
 
-    const reservationData = await getCourtReservation( stadium_id);
-    const stadiumData = await getStadiumData( stadium_id);
-    const stadiumCourtdata = await getStadiumCourtsDataBooking(stadium_id);
-
+    // ตัวอย่างการเรียกใช้ฟังก์ชัน checkReservationDuplicate
+    const reservationData = await  checkcourtDuplicate(id_stadium, date, start, end, type);
+    
+    // ตัวอย่างการเรียกใช้ฟังก์ชัน getStadiumData
+    const stadiumData = await getStadiumDatabystid(id_stadium);
+    
+    // ตัวอย่างการเรียกใช้ฟังก์ชัน getStadiumCourtsDataBooking
+    const stadiumCourtdata = await getStadiumCourtsDatabystid(id_stadium,type);
 
     return res.status(200).json({
         "reservationData": reservationData,
