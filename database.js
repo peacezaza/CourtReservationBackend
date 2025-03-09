@@ -1262,23 +1262,24 @@ async function addToCart(user_id, stadium_id, court_id, date, start_time, end_ti
 async function getCartItems(user_id) {
     try {
         const query = `
-           SELECT 
-    c.id, 
-    c.stadium_id, 
-    c.court_id, 
-    c.date, 
-    c.start_time, 
-    c.end_time, 
-    c.status,
-    s.name AS stadium_name, 
-    ct.type AS court_type,
-    sc.price_per_hr AS point
-FROM cart c
-JOIN stadium s ON c.stadium_id = s.id
-JOIN court co ON c.court_id = co.id
-JOIN court_type ct ON co.court_type_id = ct.id
-JOIN stadium_courttype sc ON s.id = sc.stadium_id AND co.court_type_id = sc.court_type_id
-WHERE c.user_id = ? AND c.status = 'pending';
+            SELECT 
+                c.id, 
+                c.stadium_id, 
+                c.court_id, 
+                c.date, 
+                c.start_time, 
+                c.end_time, 
+                c.status,
+                s.name AS stadium_name, 
+                ct.type AS court_type,
+                co.court_number AS court_number,  -- เพิ่ม court_number
+                sc.price_per_hr AS point
+            FROM cart c
+            JOIN stadium s ON c.stadium_id = s.id
+            JOIN court co ON c.court_id = co.id
+            JOIN court_type ct ON co.court_type_id = ct.id
+            JOIN stadium_courttype sc ON s.id = sc.stadium_id AND co.court_type_id = sc.court_type_id
+            WHERE c.user_id = ? AND c.status = 'pending';
         `;
         const [cartItems] = await connection.query(query, [user_id]);
         return cartItems; // ส่งกลับรายการทั้งหมดในรถเข็น
