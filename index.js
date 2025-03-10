@@ -996,21 +996,21 @@ app.post('/cart/checkout', authenticateToken, async (req, res) => {
 
 
 app.post("/checkout", authenticateToken, async (req, res) => {
-    const {  cart_id } = req.body;
+    const { cart_ids } = req.body;
     const user_id = req.user.userData.id;
-    if (!user_id || !cart_id) {
-        return res.status(400).json({ success: false, message: "user_id and cart_id are required." });
+  
+    if (!user_id || !cart_ids || !Array.isArray(cart_ids)) {
+      return res.status(400).json({ success: false, message: "user_id and cart_ids are required." });
     }
-
-    const result = await checkoutCart(user_id, cart_id);
-
+  
+    const result = await checkoutCart(user_id, cart_ids);
+  
     if (result.success) {
-        return res.status(200).json(result);
+      return res.status(200).json(result);
     } else {
-        return res.status(400).json(result);
+      return res.status(400).json(result);
     }
-});
-
+  });
 
 
 
