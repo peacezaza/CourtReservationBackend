@@ -836,10 +836,10 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
     const user = req.user;
     const user_id = user.userData.id;
     const leader_username = user.userData.username;
-    const { court_id, total_members, price_per_person } = req.body;
+    const { court_id, total_members} = req.body;
 
     try {
-        const partyId = await createParty(leader_username, court_id, total_members, price_per_person, user_id);
+        const partyId = await createParty(leader_username, court_id, total_members, user_id);
         res.status(201).json({ id: partyId, message: 'Party created successfully' });
     } catch (err) {
         if (err.message === 'Leader does not have enough points to create the party') {
@@ -855,11 +855,11 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
 
 
 
-    app.post('/party/:id/leave', authenticateToken, (req, res) => {
+    app.post('/party/leave', authenticateToken, (req, res) => {
+        const {  partyId } = req.body;
         const user = decodeToken(req.headers.authorization.split(" ")[1]);
     const user_id = user.userData.id; 
     leader_username =user.userData.username;
-        const partyId = req.params.id;
         
       
         try {
@@ -913,11 +913,12 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
         }
     });
 
-    app.delete('/cart/:id', authenticateToken, async (req, res) => {
-        const cartId = req.params.id;
+  
+    app.delete('/cart', authenticateToken, async (req, res) => {
+        const {cartId} = req.body;
         const user = req.user;
         const user_id = user.userData.id;
-    
+
         try {
             await removeCartItem(cartId, user_id);
             res.status(200).json({ message: 'Cart item deleted successfully' });
@@ -931,68 +932,11 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
     });
 
 
-    app.post('/api/cart/select', authenticateToken, async (req, res) => {
-    const user = req.user;
-    const user_id = user.userData.id;
-    const { cartId, isSelected } = req.body;
-
-    try {
-        const query = `
-            UPDATE cart
-            SET is_selected = ?
-            WHERE id = ? AND user_id = ?
-        `;
-        const [results] = await connection.query(query, [isSelected, cartId, user_id]);
-
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ error: 'Cart item not found or you do not have permission to select it' });
-        }
-
-        res.status(200).json({ message: 'Cart item selection updated successfully' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 
-app.post('/cart/select', authenticateToken, async (req, res) => {
-    const user_id = req.user.userData.id;
-    const { cartId, isSelected } = req.body;
-
-    console.log('🔹 Received:', { user_id, cartId, isSelected });
-
-    if (cartId === undefined || isSelected === undefined) {
-        return res.status(400).json({ error: 'Missing cartId or isSelected' });
-    }
-
-    try {
-        const result = updateCartSelection(user_id, cartId, isSelected);
-        
-        console.log('🔹 Query Result:', result);
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Cart item not found' });
-        }
-
-        res.status(200).json({ message: 'Cart item selection updated' });
-    } catch (error) {
-        console.error('❌ Error in /cart/select:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 
-// Checkout สินค้าในตะกร้า
-app.post('/cart/checkout', authenticateToken, async (req, res) => {
-    try {
-        const user_id = req.user.userData.id;
-        const result = checkoutCart(user_id);
-        res.status(200).json(result);
-    } catch (error) {
-        console.error('❌ Checkout Error:', error);
-        res.status(400).json({ error: error.message });
-    }
-});
+
 
 
 app.post("/checkout", authenticateToken, async (req, res) => {

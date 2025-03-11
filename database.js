@@ -938,8 +938,28 @@ function addMemberToParty(partyId, username) {
 
 
 
-  async function createParty(leaderUsername, courtId, totalMembers, pricePerPerson, userId) {
+  async function createParty(leaderUsername, courtId, totalMembers, userId) {
     try {
+        // ดึงข้อมูลราคาต่อชั่วโมงของสนามจากตาราง stadium_courttype
+        const [courtPriceResults] = await connection.query(`
+            SELECT price_per_hr
+            FROM stadium_courttype
+            WHERE court_type_id = (
+                SELECT court_type_id
+                FROM court
+                WHERE id = ?
+            )
+        `, [courtId]);
+
+        if (courtPriceResults.length === 0) {
+            throw new Error('Court price not found');
+        }
+
+        const pricePerHour = courtPriceResults[0].price_per_hr;
+
+        // คำนวณ price_per_person โดยหาร price_per_hr ด้วยจำนวนคน
+        const pricePerPerson = pricePerHour / totalMembers;
+
         // ตรวจสอบคะแนนของผู้สร้างห้องปาร์ตี้
         const [userResults] = await connection.query(`
             SELECT point
@@ -1107,50 +1127,89 @@ function checkUserPoints(username) {
   // ฟังก์ชันสำหรับออกจากห้องปาร์ตี้
   function leaveParty(partyId, username) {
     return new Promise((resolve, reject) => {
-      // ลบผู้ใช้ออกจากตาราง party_members
-      const removeMemberQuery = `
-        DELETE FROM party_members
-        WHERE party_id = ? AND username = ?
-      `;
-      connection.query(removeMemberQuery, [partyId, username], (err, results) => {
-        if (err) return reject(err);
-        if (results.affectedRows === 0) return reject(new Error('User is not a member of this party'));
-  
-        // ลดจำนวน current_members ในตาราง party
-        const decreaseMembersQuery = `
-          UPDATE party
-          SET current_members = current_members - 1
-          WHERE id = ?
-        `;
-        connection.query(decreaseMembersQuery, [partyId], (err, results) => {
-          if (err) return reject(err);
-  
-          // คืนคะแนนให้ผู้ใช้
-          const getPriceQuery = `
-            SELECT price_per_person
+        // ตรวจสอบว่าผู้ใช้เป็นหัวหน้าหรือไม่
+        const checkLeaderQuery = `
+            SELECT leader_username
             FROM party
             WHERE id = ?
-          `;
-          connection.query(getPriceQuery, [partyId], (err, results) => {
+        `;
+        connection.query(checkLeaderQuery, [partyId], (err, results) => {
             if (err) return reject(err);
-  
-            const pricePerPerson = results[0].price_per_person;
-  
-            // คืนคะแนนให้ผู้ใช้
-            const refundPointsQuery = `
-              UPDATE user
-              SET point = point + ?
-              WHERE username = ?
+            const isLeader = results[0].leader_username === username;
+
+            // ลบผู้ใช้ออกจากตาราง party_members
+            const removeMemberQuery = `
+                DELETE FROM party_members
+                WHERE party_id = ? AND username = ?
             `;
-            connection.query(refundPointsQuery, [pricePerPerson, username], (err, results) => {
-              if (err) return reject(err);
-              resolve(results);
+            connection.query(removeMemberQuery, [partyId, username], (err, results) => {
+                if (err) return reject(err);
+                if (results.affectedRows === 0) return reject(new Error('User is not a member of this party'));
+
+                // ลดจำนวน current_members ในตาราง party
+                const decreaseMembersQuery = `
+                    UPDATE party
+                    SET current_members = current_members - 1
+                    WHERE id = ?
+                `;
+                connection.query(decreaseMembersQuery, [partyId], (err, results) => {
+                    if (err) return reject(err);
+
+                    // คืนคะแนนให้ผู้ใช้
+                    const getPriceQuery = `
+                        SELECT price_per_person
+                        FROM party
+                        WHERE id = ?
+                    `;
+                    connection.query(getPriceQuery, [partyId], (err, results) => {
+                        if (err) return reject(err);
+
+                        const pricePerPerson = results[0].price_per_person;
+
+                        // คืนคะแนนให้ผู้ใช้
+                        const refundPointsQuery = `
+                            UPDATE user
+                            SET point = point + ?
+                            WHERE username = ?
+                        `;
+                        connection.query(refundPointsQuery, [pricePerPerson, username], (err, results) => {
+                            if (err) return reject(err);
+
+                            // ถ้าผู้ใช้เป็นหัวหน้า ให้คืนคะแนนให้ทุกคนและเปลี่ยนสถานะเป็น cancel
+                            if (isLeader) {
+                                const refundAllMembersQuery = `
+                                    UPDATE user
+                                    SET point = point + ?
+                                    WHERE username IN (
+                                        SELECT username
+                                        FROM party_members
+                                        WHERE party_id = ?
+                                    )
+                                `;
+                                connection.query(refundAllMembersQuery, [pricePerPerson, partyId], (err, results) => {
+                                    if (err) return reject(err);
+
+                                    // เปลี่ยนสถานะกลุ่มเป็น cancel
+                                    const cancelPartyQuery = `
+                                        UPDATE party
+                                        SET status = 'cancel'
+                                        WHERE id = ?
+                                    `;
+                                    connection.query(cancelPartyQuery, [partyId], (err, results) => {
+                                        if (err) return reject(err);
+                                        resolve(results);
+                                    });
+                                });
+                            } else {
+                                resolve(results);
+                            }
+                        });
+                    });
+                });
             });
-          });
         });
-      });
     });
-  }
+}
 
   async function joinParty(partyId, username) {
     try {
