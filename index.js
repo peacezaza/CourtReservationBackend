@@ -855,20 +855,26 @@ app.post('/party/join', authenticateToken, async (req, res) => {
 
 
 
-    app.post('/party/leave', authenticateToken, (req, res) => {
-        const {  partyId } = req.body;
-        const user = decodeToken(req.headers.authorization.split(" ")[1]);
-    const user_id = user.userData.id; 
-    leader_username =user.userData.username;
-        
-      
-        try {
-          leaveParty(partyId, username);
-          res.json({ message: 'User has left the party and points have been refunded' });
-        } catch (err) {
-          res.status(500).json({ error: err.message });
-        }
-      });
+app.post('/party/leave', authenticateToken, async (req, res) => {
+    const { partyId } = req.body;
+    const user = decodeToken(req.headers.authorization.split(" ")[1]);
+    const user_id = user.userData.id;
+    const username = user.userData.username;
+
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!partyId) {
+        return res.status(400).json({ error: 'Party ID is required' });
+    }
+
+    try {
+        // เรียกใช้ฟังก์ชัน leaveParty และรอผลลัพธ์
+        const result = await leaveParty(partyId, username);
+        res.json({ message: result.message });
+    } catch (err) {
+        console.error('Error leaving party:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 
 

@@ -1164,119 +1164,114 @@ function checkUserPoints(username) {
     });
   }
   
-  // ฟังก์ชันสำหรับออกจากห้องปาร์ตี้
   async function leaveParty(partyId, username) {
-    return new Promise((resolve, reject) => {
-        // ตรวจสอบว่าผู้ใช้เป็นหัวหน้าหรือไม่
-        const checkLeaderQuery = `
-            SELECT leader_username
+    
+    try {
+       
+
+        // ตรวจสอบข้อมูลปาร์ตี้
+        const [party] = await connection.query(`
+            SELECT leader_username, current_members, total_members, status, price_per_person
             FROM party
             WHERE id = ?
-        `;
-        connection.query(checkLeaderQuery, [partyId], (err, results) => {
-            if (err) return reject(err);
-            const isLeader = results[0].leader_username === username;
+        `, [partyId]);
 
-            // ลบผู้ใช้ออกจากตาราง party_members
-            const removeMemberQuery = `
+        if (party.length === 0) {
+            throw new Error('Party not found');
+        }
+
+        const { leader_username, current_members, total_members, status, price_per_person } = party[0];
+
+        if (status === 'cancel') {
+            throw new Error('Party is already canceled');
+        }
+
+        // ตรวจสอบว่าผู้ใช้เป็นสมาชิกของปาร์ตี้หรือไม่
+        const [member] = await connection.query(`
+            SELECT username
+            FROM party_members
+            WHERE party_id = ? AND username = ?
+        `, [partyId, username]);
+
+        if (member.length === 0) {
+            throw new Error('User is not a member of this party');
+        }
+
+        // ลบผู้ใช้ออกจากตาราง party_members
+        await connection.query(`
+            DELETE FROM party_members
+            WHERE party_id = ? AND username = ?
+        `, [partyId, username]);
+
+        // ลดจำนวน current_members ในตาราง party
+        await connection.query(`
+            UPDATE party
+            SET current_members = current_members - 1
+            WHERE id = ?
+        `, [partyId]);
+
+        // คืนคะแนนให้ผู้ใช้
+        await connection.query(`
+            UPDATE user
+            SET point = point + ?
+            WHERE username = ?
+        `, [price_per_person, username]);
+
+        // ถ้าผู้ใช้เป็นหัวหน้า
+        if (leader_username === username) {
+            // คืนคะแนนให้ทุกคนในปาร์ตี้
+            await connection.query(`
+                UPDATE user
+                SET point = point + ?
+                WHERE username IN (
+                    SELECT username
+                    FROM party_members
+                    WHERE party_id = ?
+                )
+            `, [price_per_person, partyId]);
+
+            // เปลี่ยนสถานะปาร์ตี้เป็น cancel
+            await connection.query(`
+                UPDATE party
+                SET status = 'cancel'
+                WHERE id = ?
+            `, [partyId]);
+
+            // ลบสมาชิกทั้งหมดออกจากตาราง party_members
+            await connection.query(`
                 DELETE FROM party_members
-                WHERE party_id = ? AND username = ?
-            `;
-            connection.query(removeMemberQuery, [partyId, username], (err, results) => {
-                if (err) return reject(err);
-                if (results.affectedRows === 0) return reject(new Error('User is not a member of this party'));
+                WHERE party_id = ?
+            `, [partyId]);
 
-                // ลดจำนวน current_members ในตาราง party
-                const decreaseMembersQuery = `
-                    UPDATE party
-                    SET current_members = current_members - 1
-                    WHERE id = ?
-                `;
-                connection.query(decreaseMembersQuery, [partyId], (err, results) => {
-                    if (err) return reject(err);
+            // แจ้งเตือนสมาชิกทุกคน
+            const [members] = await connection.query(`
+                SELECT username
+                FROM party_members
+                WHERE party_id = ?
+            `, [partyId]);
 
-                    // คืนคะแนนให้ผู้ใช้
-                    const getPriceQuery = `
-                        SELECT price_per_person
-                        FROM party
-                        WHERE id = ?
-                    `;
-                    connection.query(getPriceQuery, [partyId], (err, results) => {
-                        if (err) return reject(err);
+            for (const member of members) {
+                const [user] = await connection.query(`
+                    SELECT id
+                    FROM user
+                    WHERE username = ?
+                `, [member.username]);
 
-                        const pricePerPerson = results[0].price_per_person;
+                if (user.length > 0) {
+                    const userId = user[0].id;
+                    await addNewNotification(userId, 'หัวหน้าห้องปาร์ตี้ได้ยกเลิกการจอง คะแนนถูกคืนแล้ว');
+                }
+            }
+        }
 
-                        // คืนคะแนนให้ผู้ใช้
-                        const refundPointsQuery = `
-                            UPDATE user
-                            SET point = point + ?
-                            WHERE username = ?
-                        `;
-                        connection.query(refundPointsQuery, [pricePerPerson, username], (err, results) => {
-                            if (err) return reject(err);
-
-                            // ถ้าผู้ใช้เป็นหัวหน้า ให้คืนคะแนนให้ทุกคนและเปลี่ยนสถานะเป็น cancel
-                            if (isLeader) {
-                                const refundAllMembersQuery = `
-                                    UPDATE user
-                                    SET point = point + ?
-                                    WHERE username IN (
-                                        SELECT username
-                                        FROM party_members
-                                        WHERE party_id = ?
-                                    )
-                                `;
-                                connection.query(refundAllMembersQuery, [pricePerPerson, partyId], (err, results) => {
-                                    if (err) return reject(err);
-
-                                    // เปลี่ยนสถานะกลุ่มเป็น cancel
-                                    const cancelPartyQuery = `
-                                        UPDATE party
-                                        SET status = 'cancel'
-                                        WHERE id = ?
-                                    `;
-                                    connection.query(cancelPartyQuery, [partyId], (err, results) => {
-                                        if (err) return reject(err);
-
-                                        // แจ้งเตือนสมาชิกทุกคนในห้องปาร์ตี้
-                                        const getMembersQuery = `
-                                            SELECT username
-                                            FROM party_members
-                                            WHERE party_id = ?
-                                        `;
-                                        connection.query(getMembersQuery, [partyId], (err, membersResults) => {
-                                            if (err) return reject(err);
-
-                                            for (const member of membersResults) {
-                                                const getUserIdQuery = `
-                                                    SELECT id
-                                                    FROM user
-                                                    WHERE username = ?
-                                                `;
-                                                connection.query(getUserIdQuery, [member.username], (err, userResults) => {
-                                                    if (err) return reject(err);
-
-                                                    if (userResults.length > 0) {
-                                                        const userId = userResults[0].id;
-                                                        addNewNotification(userId, 'หัวหน้าห้องปาร์ตี้ได้ยกเลิกการจอง คะแนนถูกคืนแล้ว')
-                                                            .catch(error => console.error('Error sending notification:', error));
-                                                    }
-                                                });
-                                            }
-
-                                            resolve(results);
-                                        });
-                                    });
-                                });
-                            } else {
-                                resolve(results);
-                            }
-                        });
-                    });
-                });
-            });
-        });
-    });
+        await connection.commit();
+        return { success: true, message: 'Left party successfully' };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+      
+    }
 }
 
 async function joinParty(partyId, username) {
