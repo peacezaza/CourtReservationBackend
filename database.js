@@ -1924,10 +1924,10 @@ async function deductUserBalance(user_id, amount) {
 
     async function getNotificationsByUserId(userId) {
         const query = `
-            SELECT id, message, created_at
+            SELECT id, notification, date,time
             FROM notification
             WHERE user_id = ?
-            ORDER BY created_at DESC
+            ORDER BY date DESC
         `;
     
         try {
