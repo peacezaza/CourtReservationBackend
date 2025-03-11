@@ -1,12 +1,13 @@
-
-
-
-
 const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addStadium, getStadiumInfo, addFacilityList,
-    addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount , insertNotification} = require('./database')
+    addStadiumFacility, getData, addCourtType, getCourtType, addCourt, addStadiumCourtType,
+    getExchange_point ,sentVoucherAmount , insertNotification ,deleteExchangePoint ,getTransactions
+    , getStadiumWithPictures,addReservation , checkReservationDuplicate, getCourtReservation, getStadiumData,
+    updateReservationStatus, getCourt, updateUserdata, updateStadiumdata, getStadiumWithPicturesToVerify,
+    getStadiumCourtsData, getStadiumSortedByDistance, getStadiumByLocation, updateCourtStatus
+    ,getBookingData, checkOwnerReservation, getTransaction, getOverview,getUtilzation
+} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
-const {getCountryData, getStates} = require('./getData')
+const {getCountryData, getStates, getWeekPeriod} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
 
 const fs = require('fs');
@@ -17,6 +18,7 @@ const app = express()
 
 const cors = require('cors');
 const bodyParser = require('body-parser');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
@@ -242,7 +244,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                         }
                     }
 
-                //     Insert Court
+                    //     Insert Court
                     const courtDetails = JSON.parse(req.body.typeDetails);
 
                     for(const type in courtDetails){
@@ -306,29 +308,28 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
 
 app.get("/getStadiumInfo", authenticateToken, async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]);
-    // console.log(userData);
 
-    const stadiumDatas = await getStadiumWithTwoColumns("owner_id", userData.userData.id, "verify", "verified");
-    const stadiumPhoto = await getStadiumPhoto("stadium_id", stadiumDatas.id);
+    let stadiumDatas = await getStadiumWithPictures("owner_id", userData.userData.id, "verify", "verified")
 
-    // for(const stadium of stadiumDatas) {
-    //     const stadiumPhoto = await getStadiumPhoto("stadium_id", stadium.id);
-    //
-    //     stadium.photos = await Promise.all(stadiumPhotos.map(async (photo) => {
-    //         const imagePath = path.join(__dirname, photo.path);
-    //         const imageBuffer = fs.readFileSync(imagePath);
-    //         return `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-    //     }));
-    // }
 
-    // console.log(stadiumDatas)
+    // console.log(stadiumDatas.pictures)
+
     if(stadiumDatas !== null){
+        stadiumDatas = stadiumDatas.map(stadium => ({
+            ...stadium,
+            pictures: (stadium.pictures.length === 0)
+                ? [`${req.protocol}://${req.get('host')}/uploads/imageNotFound.jpg`]  // Default image if empty
+                : stadium.pictures.map(pic => `${req.protocol}://${req.get('host')}/${pic.replace(/\\/g, '/')}`)
+        }));
+
+        console.log(stadiumDatas)
         return res.status(200).json({
             "status" : true,
             "message" : "Successfully",
             "data" : stadiumDatas
         })
-    }else{
+    }
+    else{
         return res.status(400).json({
             "status" : false,
             "message" : "Error during getStadium"
@@ -339,24 +340,35 @@ app.get("/getStadiumInfo", authenticateToken, async (req, res) => {
 app.get("/getStadiumForVerify", authenticateToken, async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]);
 
-    const stadiumDatas = await getStadiumInfo("not verify", "verify", "stadium");
+    let stadiumDatas = await getStadiumWithPicturesToVerify("verify", "not verify")
+
+
+    console.log(stadiumDatas)
 
     if(stadiumDatas !== null){
+        stadiumDatas = stadiumDatas.map(stadium => ({
+            ...stadium,
+            pictures: (stadium.pictures.length === 0)
+                ? [`${req.protocol}://${req.get('host')}/uploads/imageNotFound.jpg`]  // Default image if empty
+                : stadium.pictures.map(pic => `${req.protocol}://${req.get('host')}/${pic.replace(/\\/g, '/')}`)
+        }));
+
+        console.log(stadiumDatas)
         return res.status(200).json({
             "status" : true,
-            "message" : "Verifying Stadium",
+            "message" : "Successfully",
             "data" : stadiumDatas
         })
-    }else{
+    }
+    else{
         return res.status(400).json({
             "status" : false,
             "message" : "Error during getStadium"
         })
     }
-
 })
 
-app.post("/notifications", async (req, res) => {
+app.post("/addNotifications", async (req, res) => {
     const { user_id, notification } = req.body;
 
     if (!user_id || !notification) {
@@ -364,7 +376,10 @@ app.post("/notifications", async (req, res) => {
     }
 
     try {
-        const result = await insertNotification(user_id, notification);
+        const date = new Date().toISOString().split('T')[0]; // วันที่ (YYYY-MM-DD)
+        const time = new Date().toLocaleTimeString(); // เวลาปัจจุบัน
+
+        const result = await insertNotification(user_id, date, time, notification);
         res.status(201).json(result);
     } catch (error) {
         res.status(500).json({ error: "Failed to insert notification" });
@@ -394,7 +409,7 @@ app.post('/redeem_voucher', async (req, res) => {
     }
 });
 
-app.get('/exchange_point', async (req, res) => {
+app.get('/getExchange_point', async (req, res) => {
     try {
         const searchTerm = req.query.search || "";
         const exchange_point = await getExchange_point(searchTerm);
@@ -405,8 +420,321 @@ app.get('/exchange_point', async (req, res) => {
     }
 });
 
+// app.put("/update_exchange_point", async (req, res) => {
+//     console.log("Received data:", req.body);
+
+//     const { user_id, new_point } = req.body;
+
+//     if (!user_id || new_point === undefined) {
+//         return res.status(400).json({ error: "Missing user_id or new_point" });
+//     }
+
+//     try {
+//         const result = await updateExchangePoint(user_id, new_point);
+//         res.status(result.success ? 200 : 404).json(result);
+//     } catch (error) {
+//         console.error("🔥 Error updating exchange_point:", error);
+//         res.status(500).json({ error: "Failed to update exchange point" });
+//     }
+// });
+
+
+app.delete("/deleteExchange_point", async (req, res) => {
+    try {
+        const { user_id } = req.body;
+
+        if (!user_id) {
+            console.warn("⚠️ Missing user_id in request");
+            return res.status(400).json({ error: "Missing user_id" });
+        }
+
+        console.log(`🔍 Received request to delete user_id: ${user_id}`);
+
+        const result = await deleteExchangePoint(user_id);
+        if (!result.success) {
+            console.warn(`⚠️ Deletion failed: ${result.message}`);
+            return res.status(404).json(result);
+        }
+
+        console.log(`✅ Successfully deleted user_id: ${user_id}`);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("🔥 Unexpected Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
+app.get('/getTransactions', async (req, res) => {
+    try {
+        const searchTerm = req.query.search || "";
+        const transactions = await getTransactions(searchTerm);
+        res.status(200).json(transactions);
+    } catch (error) {
+        console.error("Error fetching transactions:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// @everyone
+// ** transaction_type ใน ตาราง transaction
+
+// 'deposit'= ฝากเงิน หรือ เติมเงิน         -> Client
+// 'withdrawal' = ถอนเงิน หรือ เเลกเงิน    -> Owner
+// 'purchase' = จ่ายค่าจอง               -> Client
+// 'sale' = ได้รับค่าจอง                  -> Owner
+// 'refund' = ลูกค้ายกเลิกการจอง          -> Client
+// 'cancel' = สนามโดนยกเลิก             -> Owner
+
+// ** ฝั่ง Owner กับ Client ต้องส่ง type ตรงตามที่พิมพ์ไว้ เนื่องจาก transaction_type เป็น enum
+
+app.post('/addReservation',authenticateToken, async (req, res) => {
+    // console.log(req.body)
+
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+    // console.log(user_id)
+
+    const { court_id, stadium_id, date, start_time, end_time, status } = req.body;
+
+    const court_data = await getData("court", "id", court_id)
+    // console.log(court_data[0])
+
+    if(court_data !== null){
+        if(court_data[0].availability !== "maintenance"){
+            if(!await checkReservationDuplicate(court_id, stadium_id, date, start_time, end_time, status)){
+                const result = await addReservation(court_id, stadium_id, date, user_id,start_time, end_time, status)
+                if(result !== null){
+                    return res.status(200).json({
+                        "status" : true,
+                        "message" : "Successfully",
+                    })
+                }else
+                {
+                    return res.status(400).json({
+                        "status" : false,
+                        "message" : "query error Reservation"
+                    })
+                }
+            }
+            else{
+                return res.status(400).json({
+                    "status" : false,
+                    "message" : "Duplicated"
+                })
+            }
+        }else{
+            return res.status(400).json({
+                "status" : false,
+                "message" : "court is maintenance"
+            })
+        }
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "Error during get Court"
+        })
+    }
+
+})
+
+app.get("/getCourtDetails", authenticateToken, async (req, res) => {
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+
+    const reservationData = await getCourtReservation(user_id)
+    // console.log(reservationData)
+
+    const stadiumData = await getStadiumData(user_id)
+    // console.log(stadiumData)
+
+    const stadiumCourtdata = await getStadiumCourtsData(user_id)
+    // console.log(stadiumCourtdata)
+
+
+    return res.status(200).json({
+        "reservationData": reservationData,
+        "stadiumData": stadiumData,
+        "stadiumCourtData" : stadiumCourtdata
+    })
+
+})
+
+app.put("/updateCourtStatus", authenticateToken, async (req, res) => {
+
+    const {court_id, status} = req.body;
+
+    // console.log(req.body)
+
+    if(await checkDuplicate(court_id, "id", "court")){
+        const updatedCourtStatus = await updateCourtStatus(court_id, status)
+        if(updatedCourtStatus !== null){
+            console.log(await getData("court", "id", court_id))
+            return res.status(200).json({
+                "status" : true,
+                "message" : "Successfully",
+            })
+        }else{
+            return res.status(400).json({
+                "status": false,
+                "message" : "failed during updating court status"
+            })
+        }
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "court doesn't exit"
+        })
+    }
+})
+
+app.put("/updateReservationStatus", authenticateToken, async (req, res) => {
+    const { court_id, date, start_time, end_time, status } = req.body;
+
+    // console.log(await getCourt(court_id, date, start_time, end_time, status))
+    // console.log(await updateReservationStatus(court_id, date, start_time, end_time, status))
+    console.log(req.body)
+    const updateStatusResult = await updateReservationStatus(court_id, date, start_time, end_time, status)
+    console.log(updateStatusResult)
+    if(updateStatusResult !== null){
+        return res.status(200).json({
+            "status" : true,
+            "message" : "Updated Reservation Status Successfully"
+        })
+    }
+})
+
+app.put("/updateUserdata", authenticateToken, async (req, res) => {
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+    const { firstName, lastName, phone} = req.body;
+    console.log(req.body)
+
+
+
+    const newUserData = await updateUserdata(user_id, firstName, lastName, phone)
+
+    console.log(newUserData)
+
+})
+
+app.get("/getUserData", authenticateToken, async (req, res) =>{
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+
+    const userdata = await getData("user", "id", user_id)
+    console.log(userdata)
+
+    if(userdata !== null){
+        const data = {
+            "firstName" : userdata[0].first_name,
+            "lastName" : userdata[0].last_name,
+            "phone" : userdata[0].phone_number,
+            "email" : userdata[0].email
+        }
+        console.log(data)
+        return res.status(200).json({
+            "status" : true,
+            "data" : data
+        })
+    }
+})
+
+app.put("/updateStadiumStatus", authenticateToken, async (req, res) => {
+
+    const {stadium_id, status} = req.body
+    console.log(req.body)
+    // console.log(stadium_id, status)
+
+    const updatedStadiumStatus = await updateStadiumdata(stadium_id, status)
+    console.log(updatedStadiumStatus)
+    if(updatedStadiumStatus !== null){
+        console.log("Updated Stadium Status Successfully")
+        return res.status(200).json({
+            "status" : true,
+            "message" : "Successfully",
+        })
+    }else{
+        return res.status(400).json({
+            "status": false,
+            "message" : "failed during updating Stadium"
+        })
+    }
+})
+
+
+app.get("/getReservationData", authenticateToken, async (req, res) => {
+    const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+
+    const bookingData = await getBookingData(user_id)
+    // console.log(bookingData)
+
+    return res.status(200).json({
+        "status" : true,
+        "data" : bookingData
+    })
+})
+
+app.get("/owner/getTransaction", authenticateToken, async (req, res) => {
+    const userData = decodeToken(req.headers.authorization.split(" ")[1]).userData;
+    console.log(userData)
+    if(userData.user_type === "owner"){
+        const transactionData = await getTransaction(userData.id)
+        // console.log(transactionData)
+
+        const formattedTransactionData = transactionData.map(transactionData => {
+            const dateObj = new Date(transactionData.time)
+
+            return {
+                ...transactionData,
+                date: dateObj.toLocaleDateString().split("T")[0],
+                time: dateObj.toLocaleTimeString()
+            }
+        })
+        if(transactionData){
+            return res.status(200).json({
+                "status" : true,
+                "data" : formattedTransactionData
+            })
+        }else{
+            return res.status(404).json({
+                "status": false,
+                "message" : "Not Found"
+            })
+        }
+
+    }
+    else{
+        return res.status(401).json({
+            "status" : false,
+            "message" : "Unauthorized user"
+        })
+    }
+
+})
+
+app.get("/owner/getWeeklyDashboard", async (req, res) => {
+    const userData = decodeToken(req.headers.authorization.split(" ")[1]).userData;
+    const weekperiod = getWeekPeriod();
+    console.log(weekperiod)
+
+    const overview = await getOverview(userData.id, true, weekperiod[0].start, weekperiod[0].end)
+    console.log(overview)
+
+    return res.status(200).json({
+        "status": true,
+    })
+})
+
+
+
+app.post("/forgot-password", authenticateToken, async (req, res) => {
+
+    console.log(req.body)
+})
+
 app.listen(port,ip, () => { // Specifying the IP address to bind to
     console.log(`Example app listening at http://${ip}:${port}`)
 });
 
-//20.2.250.248
+
+
+
+
+
