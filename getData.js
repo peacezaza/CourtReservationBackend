@@ -1,6 +1,7 @@
 const axios = require("axios")
 
 
+
 async function getCountryData() {
     try {
         const response = await axios.get("https://countriesnow.space/api/v0.1/countries");
@@ -39,4 +40,22 @@ async function getStates(country) {
     }
 }
 
-module.exports = { getCountryData, getStates}
+function getWeekPeriod(){
+    const today = new Date()
+    const dayOfWeek = today.getDay()
+
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - dayOfWeek);
+
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+
+    const weekperiod =[
+        {start:startOfWeek.toISOString()},
+        {end:endOfWeek.toISOString()}
+    ]
+
+    return weekperiod
+}
+
+module.exports = { getCountryData, getStates, getWeekPeriod}
