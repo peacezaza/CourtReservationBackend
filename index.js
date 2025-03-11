@@ -9,7 +9,7 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
     getUserBalance,
     createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,getPendingParties,
     removeFromCart,
-    deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,
+    deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,insertReport,
     addMemberToParty,joinParty,
     addPartyMember, addNewNotification,getNotificationsByUserId,
    
@@ -1008,7 +1008,24 @@ app.get('/notifications', authenticateToken, async (req, res) => {
 });
 
 
+app.post('/report', authenticateToken,async (req, res) => {
+    const { topic, detail, } = req.body;
+    const user = decodeToken(req.headers.authorization.split(" ")[1]);
+        const userId = user.userData.id;
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!topic || !detail || !userId) {
+        return res.status(400).json({ error: 'Missing required fields: topic, detail, or userId' });
+    }
 
+    try {
+        // เพิ่มรายงานลงในฐานข้อมูล
+        const { success, reportId } = await insertReport(topic, detail, userId);
+        res.status(201).json({ success: true, reportId, message: 'Report submitted successfully' });
+    } catch (error) {
+        console.error('Error in /report API:', error);
+        res.status(500).json({ error: 'Failed to submit report' });
+    }
+});
 
 
 

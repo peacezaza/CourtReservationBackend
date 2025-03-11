@@ -499,7 +499,14 @@ async function getReservationsByUserId(userId) {
             return [];
         }
 
-        return result;  // คืนค่าผลลัพธ์การจอง
+        // แปลงข้อมูลรูปภาพจาก string ที่รวมกันด้วย comma เป็น array
+        const formattedResult = result.map(reservation => ({
+            ...reservation,
+            pictures: reservation.pictures ? reservation.pictures.split(',') : [],  // แปลงรูปภาพเป็น array
+            members: reservation.members ? reservation.members.split(',') : []     // แปลงสมาชิกเป็น array
+        }));
+
+        return formattedResult;  // คืนค่าผลลัพธ์การจอง
     } catch (error) {
         console.error('เกิดข้อผิดพลาดในการดึงข้อมูลการจอง:', error);
         throw error;  // ขว้างข้อผิดพลาดออกไปเพื่อให้ฟังก์ชันที่เรียกใช้สามารถจัดการ
@@ -1275,10 +1282,13 @@ function checkUserPoints(username) {
 }
 
 async function joinParty(partyId, username) {
+    
     try {
+       
+
         // ตรวจสอบข้อมูลห้องปาร์ตี้
         const [partyResults] = await connection.query(`
-            SELECT current_members, total_members, price_per_person, court_id, date, start_time, end_time
+            SELECT current_members, total_members, price_per_person, court_id, date, start_time, end_time, status
             FROM party
             WHERE id = ?
         `, [partyId]);
@@ -1287,7 +1297,11 @@ async function joinParty(partyId, username) {
             throw new Error('Party not found');
         }
 
-        const { current_members, total_members, price_per_person, court_id, date, start_time, end_time } = partyResults[0];
+        const { current_members, total_members, price_per_person, court_id, date, start_time, end_time, status } = partyResults[0];
+
+        if (status === 'cancel') {
+            throw new Error('Party is already canceled');
+        }
 
         if (current_members >= total_members) {
             throw new Error('Party is full');
@@ -1301,7 +1315,7 @@ async function joinParty(partyId, username) {
         `, [partyId, username]);
 
         if (memberCheckResults.length > 0) {
-            throw new Error('already in party');
+            throw new Error('User is already in the party');
         }
 
         // ตรวจสอบว่ามีการจองที่ชนกันหรือไม่
@@ -1323,6 +1337,12 @@ async function joinParty(partyId, username) {
                 UPDATE party
                 SET status = 'cancel'
                 WHERE id = ?
+            `, [partyId]);
+
+            // ลบสมาชิกทั้งหมดออกจากตาราง party_members
+            await connection.query(`
+                DELETE FROM party_members
+                WHERE party_id = ?
             `, [partyId]);
 
             // คืนคะแนนให้ทุกคนในห้องปาร์ตี้
@@ -1435,17 +1455,20 @@ async function joinParty(partyId, username) {
                 if (user.length > 0) {
                     await addNewNotification(user[0].id, 'ห้องปาร์ตี้ของคุณเต็มแล้วและได้รับการยืนยันการจอง');
                 }
-                 await transaction(user[0].id, price_per_person,'purchase');
+                await transaction(user[0].id, price_per_person, 'purchase');
             }
         }
 
+        await connection.commit();
         return { message: 'Joined party successfully' };
     } catch (error) {
+        await connection.rollback();
         console.error("Error in joinParty:", error);
         throw error;
+    } finally {
+       
     }
 }
-
 async function getPartyMembers(partyId) {
     try {
         // ดึงข้อมูลสมาชิกทั้งหมดในห้องปาร์ตี้
@@ -1863,7 +1886,8 @@ async function deductUserBalance(user_id, amount) {
                 ct.type AS court_type,
                 s.name AS stadium_name,
                 s.location AS stadium_location,  -- ที่ตั้งของสนาม
-                GROUP_CONCAT(DISTINCT pm.username) AS members  -- สมาชิกในห้องปาร์ตี้
+                GROUP_CONCAT(DISTINCT pm.username) AS members,  -- สมาชิกในห้องปาร์ตี้
+                GROUP_CONCAT(DISTINCT pic.path) AS pictures  -- รูปภาพของสนาม
             FROM 
                 party p
             JOIN 
@@ -1874,6 +1898,8 @@ async function deductUserBalance(user_id, amount) {
                 stadium s ON c.stadium_id = s.id
             LEFT JOIN 
                 party_members pm ON p.id = pm.party_id
+            LEFT JOIN 
+                picture pic ON s.id = pic.stadium_id  -- JOIN ตาราง picture เพื่อดึงรูปภาพ
             WHERE 
                 p.status = 'pending'  -- ดึงเฉพาะห้องปาร์ตี้ที่มีสถานะเป็น pending
             GROUP BY 
@@ -1890,7 +1916,13 @@ async function deductUserBalance(user_id, amount) {
                 return [];
             }
     
-            return result;  // คืนค่าผลลัพธ์ห้องปาร์ตี้
+            // แปลงข้อมูลรูปภาพจาก string ที่รวมกันด้วย comma เป็น array
+            const formattedResult = result.map(party => ({
+                ...party,
+                pictures: party.pictures ? party.pictures.split(',') : []  // แปลงรูปภาพเป็น array
+            }));
+    
+            return formattedResult;  // คืนค่าผลลัพธ์ห้องปาร์ตี้
         } catch (error) {
             console.error('เกิดข้อผิดพลาดในการดึงข้อมูลห้องปาร์ตี้:', error);
             throw error;  // ขว้างข้อผิดพลาดออกไปเพื่อให้ฟังก์ชันที่เรียกใช้สามารถจัดการ
@@ -1946,13 +1978,28 @@ async function deductUserBalance(user_id, amount) {
     }
 
 
+    async function insertReport(topic, detail, userId) {
+        const query = `
+            INSERT INTO report (topic, detail, user_id)
+            VALUES (?, ?, ?)
+        `;
+    
+        try {
+            const [result] = await connection.query(query, [topic, detail, userId]);
+            return { success: true, reportId: result.insertId };
+        } catch (error) {
+            console.error('Error inserting report:', error);
+            throw error;
+        }
+    }
+
 
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,getPartyMembers,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,getPendingParties,
     addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,
     addPartyMember,createParty,
-    addMemberToParty, checkcourtDuplicate,
+    addMemberToParty, checkcourtDuplicate,insertReport,
     
     checkPartyFull,joinParty,checkReserv,
   
