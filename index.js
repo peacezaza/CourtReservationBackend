@@ -7,7 +7,7 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
     getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,getPictures,
     getSelectedCartItems,checkReserv,
     getUserBalance,
-    createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,
+    createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,getPendingParties,
     removeFromCart,
     deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,
     addMemberToParty,joinParty,
@@ -545,23 +545,23 @@ app.get("/home", authenticateToken, async (req, res) => {
 
 app.get('/reservations', authenticateToken, async (req, res) => {
     try {
-      const user = decodeToken(req.headers.authorization.split(" ")[1]);
-      const id = user.userData.id;
-  
-      // เรียกใช้ฟังก์ชัน getReservationsByUserId ด้วย async/await
-      const reservations = await getReservationsByUserId(id);
-  
-      // ถ้าพบการจอง
-      if (reservations.length > 0) {
-        res.json(reservations);
-      } else {
-        res.status(404).send('ไม่พบการจองสำหรับผู้ใช้ที่ระบุ');
-      }
+        const user = decodeToken(req.headers.authorization.split(" ")[1]);
+        const id = user.userData.id;
+
+        // เรียกใช้ฟังก์ชัน getReservationsByUserId ด้วย async/await
+        const reservations = await getReservationsByUserId(id);
+
+        // ถ้าพบการจอง
+        if (reservations.length > 0) {
+            res.json(reservations);
+        } else {
+            res.status(404).send('ไม่พบการจองสำหรับผู้ใช้ที่ระบุ');
+        }
     } catch (err) {
-      console.error('Error fetching reservations:', err);
-      res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+        console.error('Error fetching reservations:', err);
+        res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
     }
-  });
+});
   
 
 
@@ -799,16 +799,16 @@ app.put("/change_password", authenticateToken, async (req, res) => {
 
 
 
-app.post('/party/:id/join', authenticateToken, async (req, res) => {
+app.post('/party/join', authenticateToken, async (req, res) => {
     const user = req.user;
     //const user_id = user.userData.id;
     const username = user.userData.username;
+    const {partyid}= req.body;
    
-    const partyId = req.params.id;
    
 
     try {
-        const result = await joinParty(partyId, username);
+        const result = await joinParty(partyid, username);
         res.status(200).json(result);
     } catch (err) {
         if (err.message === 'Party not found') {
@@ -832,14 +832,14 @@ app.post('/party/:id/join', authenticateToken, async (req, res) => {
   
 
 
-  app.post('/party', authenticateToken, async (req, res) => {
+  app.post('/createparty', authenticateToken, async (req, res) => {
     const user = req.user;
     const user_id = user.userData.id;
     const leader_username = user.userData.username;
-    const { court_id, total_members} = req.body;
+    const { court_id, total_members,date, startTime, endTime, topic, detail} = req.body;
 
     try {
-        const partyId = await createParty(leader_username, court_id, total_members, user_id);
+        const partyId = await createParty(leader_username, court_id, total_members, user_id, date, startTime, endTime, topic, detail);
         res.status(201).json({ id: partyId, message: 'Party created successfully' });
     } catch (err) {
         if (err.message === 'Leader does not have enough points to create the party') {
@@ -955,6 +955,36 @@ app.post("/checkout", authenticateToken, async (req, res) => {
       return res.status(400).json(result);
     }
   });
+
+
+
+
+  app.get('/party/pending', authenticateToken, async (req, res) => {
+    try {
+        // เรียกใช้ฟังก์ชัน getPendingParties ด้วย async/await
+        const pendingParties = await getPendingParties();
+
+        // ถ้าพบห้องปาร์ตี้
+        if (pendingParties.length > 0) {
+            res.json(pendingParties);
+        } else {
+            res.status(404).send('ไม่พบห้องปาร์ตี้ที่มีสถานะเป็น pending');
+        }
+    } catch (err) {
+        console.error('Error fetching pending parties:', err);
+        res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+    }
+});
+
+
+
+
+
+
+
+
+
+
 
 
 
