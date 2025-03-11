@@ -11,13 +11,13 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
     removeFromCart,
     deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,
     addMemberToParty,joinParty,
-    addPartyMember,
+    addPartyMember, addNewNotification,getNotificationsByUserId,
    
     
    
    
     leaveParty,
-    checkPartyFull,deductPointsFromUsers,updatePartyStatus,checkUserPoints, insertNotification,getpoint,getStadiumSortedByDistancemobile,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,deposit,deleteExchangePoint} = require('./database')
+    checkPartyFull,deductPointsFromUsers,updatePartyStatus,checkUserPoints, insertNotification,getpoint,getStadiumSortedByDistancemobile,getCourt,changePassword,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,addReservation,getFacilitiesByStadium,getReservationsByUserId,getReviewsByStadiumId ,addReview,updateUserPoint,transaction,deleteExchangePoint} = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
@@ -509,7 +509,7 @@ app.post('/deposit', authenticateToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        const transactionId = await deposit(user_id, amount, "deposit");
+        const transactionId = await transaction(user_id, amount, "deposit");
 
         return res.status(201).json({ success: true, message: 'Deposit successful', transaction_id: transactionId });
        
@@ -950,6 +950,9 @@ app.post("/checkout", authenticateToken, async (req, res) => {
     const result = await checkoutCart(user_id, cart_ids);
   
     if (result.success) {
+      
+      const res2= await addNewNotification(user_id, 'NewReservation');
+      
       return res.status(200).json(result);
     } else {
       return res.status(400).json(result);
@@ -978,8 +981,25 @@ app.post("/checkout", authenticateToken, async (req, res) => {
 
 
 
+app.get('/notifications', authenticateToken, async (req, res) => {
+    try {
+        const user = decodeToken(req.headers.authorization.split(" ")[1]);
+        const userId = user.userData.id;
 
+        // เรียกใช้ฟังก์ชัน getNotificationsByUserId ด้วย async/await
+        const notifications = await getNotificationsByUserId(userId);
 
+        // ถ้าพบการแจ้งเตือน
+        if (notifications.length > 0) {
+            res.json(notifications);
+        } else {
+            res.status(404).send('ไม่พบการแจ้งเตือนสำหรับผู้ใช้ที่ระบุ');
+        }
+    } catch (err) {
+        console.error('Error fetching notifications:', err);
+        res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+    }
+});
 
 
 

@@ -340,7 +340,7 @@ async function getpoint(id) {
 }
 
 
-async function deposit(id, amount, type) {
+async function transaction(id, amount, type) {
     try {
         const query = 'INSERT INTO transactions (user_id, point, transaction_type, time) VALUES (?, ?, ?, NOW())';
         const [result] = await connection.query(query, [id, amount, type]);
@@ -963,6 +963,23 @@ function addMemberToParty(partyId, username) {
 
   async function createParty(leaderUsername, courtId, totalMembers, userId, date, startTime, endTime, topic, detail) {
     try {
+        // ตรวจสอบว่ามีการจองที่ชนกันหรือไม่
+        const [reservationResults] = await connection.query(`
+            SELECT id
+            FROM reservation
+            WHERE court_id = ?
+              AND date = ?
+              AND (
+                (start_time < ? AND end_time > ?) OR
+                (start_time < ? AND end_time > ?) OR
+                (start_time >= ? AND end_time <= ?)
+            )
+        `, [courtId, date, endTime, startTime, startTime, endTime, startTime, endTime]);
+
+        if (reservationResults.length > 0) {
+            throw new Error('มีห้องปาร์ตี้หรือการจองที่ชนกันในวันที่และเวลาที่ระบุ');
+        }
+
         // ดึงข้อมูลราคาต่อชั่วโมงของสนามจากตาราง stadium_courttype
         const [courtPriceResults] = await connection.query(`
             SELECT price_per_hr
@@ -1148,7 +1165,7 @@ function checkUserPoints(username) {
   }
   
   // ฟังก์ชันสำหรับออกจากห้องปาร์ตี้
-  function leaveParty(partyId, username) {
+  async function leaveParty(partyId, username) {
     return new Promise((resolve, reject) => {
         // ตรวจสอบว่าผู้ใช้เป็นหัวหน้าหรือไม่
         const checkLeaderQuery = `
@@ -1220,7 +1237,35 @@ function checkUserPoints(username) {
                                     `;
                                     connection.query(cancelPartyQuery, [partyId], (err, results) => {
                                         if (err) return reject(err);
-                                        resolve(results);
+
+                                        // แจ้งเตือนสมาชิกทุกคนในห้องปาร์ตี้
+                                        const getMembersQuery = `
+                                            SELECT username
+                                            FROM party_members
+                                            WHERE party_id = ?
+                                        `;
+                                        connection.query(getMembersQuery, [partyId], (err, membersResults) => {
+                                            if (err) return reject(err);
+
+                                            for (const member of membersResults) {
+                                                const getUserIdQuery = `
+                                                    SELECT id
+                                                    FROM user
+                                                    WHERE username = ?
+                                                `;
+                                                connection.query(getUserIdQuery, [member.username], (err, userResults) => {
+                                                    if (err) return reject(err);
+
+                                                    if (userResults.length > 0) {
+                                                        const userId = userResults[0].id;
+                                                        addNewNotification(userId, 'หัวหน้าห้องปาร์ตี้ได้ยกเลิกการจอง คะแนนถูกคืนแล้ว')
+                                                            .catch(error => console.error('Error sending notification:', error));
+                                                    }
+                                                });
+                                            }
+
+                                            resolve(results);
+                                        });
                                     });
                                 });
                             } else {
@@ -1298,6 +1343,17 @@ async function joinParty(partyId, username) {
                     SET point = point + ?
                     WHERE username = ?
                 `, [price_per_person, member.username]);
+
+                // แจ้งเตือนสมาชิกทุกคนในห้องปาร์ตี้
+                const [user] = await connection.query(`
+                    SELECT id
+                    FROM user
+                    WHERE username = ?
+                `, [member.username]);
+
+                if (user.length > 0) {
+                    await addNewNotification(user[0].id, 'ห้องปาร์ตี้ของคุณถูกยกเลิกเนื่องจากมีการจองที่ชนกัน คะแนนถูกคืนแล้ว');
+                }
             }
 
             throw new Error('Reservation conflict: Party has been canceled and points refunded');
@@ -1366,6 +1422,26 @@ async function joinParty(partyId, username) {
                 SET reservation_id = ?
                 WHERE id = ?
             `, [reservationId, partyId]);
+
+            // แจ้งเตือนสมาชิกทุกคนในห้องปาร์ตี้
+            const [membersResults] = await connection.query(`
+                SELECT username
+                FROM party_members
+                WHERE party_id = ?
+            `, [partyId]);
+
+            for (const member of membersResults) {
+                const [user] = await connection.query(`
+                    SELECT id
+                    FROM user
+                    WHERE username = ?
+                `, [member.username]);
+
+                if (user.length > 0) {
+                    await addNewNotification(user[0].id, 'ห้องปาร์ตี้ของคุณเต็มแล้วและได้รับการยืนยันการจอง');
+                }
+                 await transaction(user[0].id, price_per_person,'purchase');
+            }
         }
 
         return { message: 'Joined party successfully' };
@@ -1374,7 +1450,6 @@ async function joinParty(partyId, username) {
         throw error;
     }
 }
-
 
 async function getPartyMembers(partyId) {
     try {
@@ -1698,7 +1773,11 @@ async function deductUserBalance(user_id, amount) {
       
             // ลบข้อมูลใน cart เนื่องจากจองสำเร็จ
             await deleteCart(cart_id);
+            const res3= await transaction(user_id, totalPrice,'purchase');
+
+
           }
+
       
           return { success: true, message: "Payment and reservation completed successfully for all selected carts." };
         } catch (error) {
@@ -1825,11 +1904,51 @@ async function deductUserBalance(user_id, amount) {
 
 
 
+    async function addNewNotification(user_id, text) {
+        try {
+            const query = `
+                INSERT INTO notification (user_id, date, time, notification)
+                VALUES (?, CURRENT_DATE(), CURRENT_TIME(), ?)
+            `;
+    
+            const [result] = await connection.query(query, [user_id, text]);
+    
+            // ตรวจสอบว่ามีการเพิ่มข้อมูลสำเร็จหรือไม่
+            if (result.affectedRows > 0) {
+                console.log('Notification added successfully');
+                return true;
+            } else {
+                console.log('Failed to add notification');
+                return false;
+            }
+        } catch (error) {
+            console.error('Error adding new notification:', error);
+            return false;  // คืนค่า false หากเกิดข้อผิดพลาด
+        }
+    }
 
-
-
-
-
+    async function getNotificationsByUserId(userId) {
+        const query = `
+            SELECT id, message, created_at
+            FROM notification
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+        `;
+    
+        try {
+            const [notifications] = await connection.query(query, [userId]);
+    
+            if (notifications.length === 0) {
+                console.log(`ไม่พบการแจ้งเตือนสำหรับผู้ใช้ที่มี ID: ${userId}`);
+                return [];
+            }
+    
+            return notifications;  // คืนค่าผลลัพธ์การแจ้งเตือน
+        } catch (error) {
+            console.error('เกิดข้อผิดพลาดในการดึงข้อมูลการแจ้งเตือน:', error);
+            throw error;  // ขว้างข้อผิดพลาดออกไปเพื่อให้ฟังก์ชันที่เรียกใช้สามารถจัดการ
+        }
+    }
 
 
 
@@ -1846,13 +1965,13 @@ module.exports = {
     checkUserPoints,
     leaveParty,getStadiumDatabystid,
     
-    deductPointsFromUsers,refundPoints,addToCart,getCartItems,removeCartItem,updateCartSelection,checkoutCart,
+    deductPointsFromUsers,refundPoints,addToCart,getCartItems,removeCartItem,updateCartSelection,checkoutCart,getNotificationsByUserId,
     getSelectedCartItems,
     getUserBalance,
     createReservation,
     removeFromCart,
-    deductUserBalance,
+    deductUserBalance, addNewNotification,
     
-   getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,deposit,updateUserPoint, getpoint,deleteExchangePoint
+   getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,transaction,updateUserPoint, getpoint,deleteExchangePoint
 };
 
