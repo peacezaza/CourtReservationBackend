@@ -1602,8 +1602,24 @@ async function deductUserBalance(user_id, amount) {
     }
 
 
-
-
+    async function getPictures(stadiumId = null) {
+        let query = "SELECT * FROM picture";
+        let params = [];
+    
+        if (stadiumId) {
+            query += " WHERE stadium_id = ?";
+            params.push(stadiumId);
+        }
+    
+        return new Promise((resolve, reject) => {
+            connection.query(query, params, (error, results) => {
+                if (error) {
+                    return reject(error);
+                }
+                resolve(results);
+            });
+        });
+    }
 
 
 
@@ -1616,7 +1632,7 @@ module.exports = {
     
     checkPartyFull,joinParty,checkReserv,
   
-    updatePartyStatus,getStadiumCourtsDatabystid,
+    updatePartyStatus,getStadiumCourtsDatabystid,getPictures,
     checkUserPoints,
     leaveParty,getStadiumDatabystid,
     

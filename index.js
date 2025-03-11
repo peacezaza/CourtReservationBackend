@@ -4,7 +4,7 @@
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
     addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
-    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,
+    getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,getPictures,
     getSelectedCartItems,checkReserv,
     getUserBalance,
     createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,
@@ -37,7 +37,7 @@ app.use(express.json());
 
 const port = 3000
 const ip = '0.0.0.0'
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Connect to Database
 
 try{
@@ -1011,6 +1011,36 @@ app.post("/checkout", authenticateToken, async (req, res) => {
       return res.status(400).json(result);
     }
   });
+
+
+
+  app.get('/pictures', async (req, res) => {
+    try {
+        const stadiumPhoto = await getStadiumPhoto("stadium_id", 2);
+
+        // แปลง path ให้เป็น URL ที่ถูกต้อง
+        const photosWithUrl = stadiumPhoto.map(photo => ({
+            ...photo,
+            photoUrl: `http://localhost:3000/${photo.path.replace(/\\/g, '/')}`
+        }));
+
+        res.json(photosWithUrl);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
