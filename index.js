@@ -535,33 +535,33 @@ app.get("/testdata", authenticateToken, async (req, res) => {
 });
 
 app.get("/home", authenticateToken, async (req, res) => {
-    // const result = await getStadiumByLocation("verify", "verified")
-    const result = await getStadiumSortedByDistancemobile(13.486005,101.0207411, "verify", "verified")
-
-    console.log(result)
-
-    return res.status(200).json({
-        "data": result
-    })
-})
-
-app.get('/reservations', authenticateToken, async (req, res) => {
     try {
-        const user = decodeToken(req.headers.authorization.split(" ")[1]);
-        const id = user.userData.id;
+        // อ่านค่าละติจูดและลองติจูดจาก query parameters
+        let { latitude, longitude } = req.query;
 
-        // เรียกใช้ฟังก์ชัน getReservationsByUserId ด้วย async/await
-        const reservations = await getReservationsByUserId(id);
-
-        // ถ้าพบการจอง
-        if (reservations.length > 0) {
-            res.json(reservations);
-        } else {
-            res.status(404).send('ไม่พบการจองสำหรับผู้ใช้ที่ระบุ');
+        // ตั้งค่าเริ่มต้นหากไม่พบค่าละติจูดและลองติจูด
+        if (!latitude || !longitude) {
+            latitude = 13.486005;
+            longitude = 101.0207411;
+            console.warn("Using default coordinates:", latitude, longitude);
         }
-    } catch (err) {
-        console.error('Error fetching reservations:', err);
-        res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+
+        // แปลงค่าละติจูดและลองติจูดเป็นตัวเลข
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+
+        // เรียกใช้ฟังก์ชันเพื่อดึงข้อมูลสนามเรียงตามระยะทาง
+        const result = await getStadiumSortedByDistancemobile(lat, lng, "verify", "verified");
+
+        console.log(result);
+
+        // ส่งผลลัพธ์กลับไปยัง client
+        return res.status(200).json({
+            data: result
+        });
+    } catch (error) {
+        console.error("Error in /home endpoint:", error);
+        return res.status(500).json({ error: "An error occurred while processing your request." });
     }
 });
   
