@@ -2017,7 +2017,7 @@ async function deductUserBalance(user_id, amount) {
         try {
             await connection.beginTransaction();
     
-            // ตรวจสอบว่าการจองนี้เป็นของ user นี้หรือไม่
+            // ตรวจสอบว่าการจองเป็นของผู้ใช้หรือไม่
             const [reservation] = await connection.query(
                 `SELECT id, date, start_time, end_time, status, court_id, stadium_id
                  FROM reservation
@@ -2029,7 +2029,7 @@ async function deductUserBalance(user_id, amount) {
                 throw new Error('Reservation not found or does not belong to the user');
             }
     
-            const { date, start_time, end_time, status, court_id, stadium_id } = reservation[0];
+            let { date, start_time, end_time, status, court_id, stadium_id } = reservation[0];
     
             // ตรวจสอบสถานะการจอง
             if (status === 'cancelled') {
@@ -2038,9 +2038,7 @@ async function deductUserBalance(user_id, amount) {
     
             // ตรวจสอบว่าการจองนี้เป็นการจองแบบกลุ่มหรือไม่
             const [party] = await connection.query(
-                `SELECT id
-                 FROM party
-                 WHERE reservation_id = ?`,
+                `SELECT id FROM party WHERE reservation_id = ?`,
                 [reservationId]
             );
     
@@ -2048,20 +2046,34 @@ async function deductUserBalance(user_id, amount) {
                 throw new Error('Cannot cancel a group reservation');
             }
     
-            // ตรวจสอบว่าเวลาจองผ่านไปแล้วหรือไม่
-            const now = new Date();
-            const reservationEndDateTime = new Date(`${date}T${end_time}`);
-            if (now > reservationEndDateTime) {
-                throw new Error('Cannot cancel reservation after the end time');
-            }
-    
-            // ตรวจสอบว่าเหลือเวลาน้อยกว่า 1 ชั่วโมงหรือไม่
-            const reservationDateTime = new Date(`${date}T${start_time}`);
-            const timeDifference = (reservationDateTime - now) / (1000 * 60 * 60); // คำนวณเป็นชั่วโมง
-    
-            if (timeDifference < 1) {
-                throw new Error('Cannot cancel reservation less than 1 hour before the start time');
-            }
+            
+           // แปลงเป็น string เพื่อความปลอดภัย
+           date = date.toISOString().split("T")[0]; // YYYY-MM-DD
+           start_time = start_time.toString().padStart(8, "0"); // HH:MM:SS
+           end_time = end_time.toString().padStart(8, "0"); // HH:MM:SS
+   
+           const now = new Date();
+           const startDateTime = new Date(`${date}T${start_time}Z`); // ใช้ Z เพื่อบังคับเป็น UTC
+           const endDateTime = new Date(`${date}T${end_time}Z`);
+   
+           // Debug: เช็คค่าที่แปลงแล้ว
+           console.log("Start Time:", startDateTime);
+           console.log("End Time:", endDateTime);
+   
+           if (isNaN(startDateTime) || isNaN(endDateTime)) {
+               throw new Error("Invalid date format after conversion");
+           }
+   
+           // ตรวจสอบว่าเวลาจองผ่านไปแล้วหรือไม่
+           if (now > endDateTime) {
+               throw new Error('Cannot cancel reservation after the end time');
+           }
+   
+           // ตรวจสอบว่าเหลือเวลาอย่างน้อย 1 ชั่วโมงก่อนเริ่มจอง
+           const timeDifference = (startDateTime - now) / (1000 * 60 * 60);
+           if (timeDifference < 1) {
+               throw new Error('Cannot cancel reservation less than 1 hour before the start time');
+           }
     
             // ดึงราคาต่อชั่วโมงของสนาม
             const [priceResult] = await connection.query(
@@ -2097,6 +2109,13 @@ async function deductUserBalance(user_id, amount) {
                 [reservationId]
             );
     
+            // เพิ่มข้อมูลการยกเลิกในตาราง transactions
+            await connection.query(
+                `INSERT INTO transactions (user_id, point, transaction_type, time)
+                 VALUES (?, ?, 'cancel', NOW())`,
+                [userId, pricePerHour]
+            );
+    
             await connection.commit();
             return { success: true, message: 'Reservation canceled successfully', refundedPoints: pricePerHour };
         } catch (error) {
@@ -2105,10 +2124,7 @@ async function deductUserBalance(user_id, amount) {
             throw error;
         }
     }
-
-
-
-
+    
 
 
 
