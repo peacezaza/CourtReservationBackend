@@ -490,10 +490,8 @@ async function getReservationsByUserId(userId) {
     `;
 
     try {
-        // ใช้ await กับ query เพื่อให้ได้ผลลัพธ์จากฐานข้อมูล
         const [result] = await connection.query(query, [userId, userId]);
 
-        // ถ้าไม่พบผลลัพธ์
         if (result.length === 0) {
             console.log(`ไม่พบการจองสำหรับผู้ใช้ที่มี ID: ${userId}`);
             return [];
@@ -502,7 +500,10 @@ async function getReservationsByUserId(userId) {
         // แปลงข้อมูลรูปภาพจาก string ที่รวมกันด้วย comma เป็น array
         const formattedResult = result.map(reservation => ({
             ...reservation,
-            pictures: reservation.pictures ? reservation.pictures.split(',') : [],  // แปลงรูปภาพเป็น array
+            pictures: reservation.pictures ? reservation.pictures.split(',').map(path => ({
+                path: path,
+                photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+            })) : [],  // แปลงรูปภาพเป็น array ของ object
             members: reservation.members ? reservation.members.split(',') : []     // แปลงสมาชิกเป็น array
         }));
 
