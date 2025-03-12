@@ -21,6 +21,8 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client('90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com');
 
 const fs = require('fs');
 const path = require('path');
@@ -1070,7 +1072,62 @@ app.post('/cancel_reservation', async (req, res) => {
 
 
 
+app.post("/google-signup", async (req, res) => {
+    try{
+        const token = req.body.credential;
+        const user_type = req.body.user_type
+        if (!token) {
+            return res.status(400).json({ success: false, message: "No token provided" });
+        }
 
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: '90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com',
+        });
+
+        const payload = ticket.getPayload();
+        const { email, given_name, family_name, sub: googleId } = payload;
+        console.log(payload)
+        if(!await checkDuplicate(email, "email", "user")){
+            console.log("PASSED")
+            const newUser = await insertNewUser(null,email,"1",user_type, 0)
+            const userId = newUser.insertId
+            if(newUser){
+                // const updateData = await updateUserdata()
+                if(await updateUserdata(userId, given_name, family_name, null)){
+                    console.log("Updated")
+                }
+                const user = await getUserInfo(email, "email")
+                console.log(user)
+                const token = await createToken(user)
+                return res.status(200).json({
+                    success : true,
+                    "message": "Logged in Successfully",
+                    "token": token,
+                })
+            }
+        }else{
+            const user = await getUserInfo(email, "email")
+            if(await login(email, "email", "1")){
+                const token = await createToken(user)
+                console.log(user)
+                return res.status(200).json({
+                    success : true,
+                    "message": "Logged in Successfully",
+                    "token": token,
+                })
+            }else{
+                return res.status(401).json({
+                    success:false,
+                    message : "email already exists"
+                });
+            }
+        }
+    }
+    catch (error){
+        console.log(error)
+    }
+})
 
 
 
