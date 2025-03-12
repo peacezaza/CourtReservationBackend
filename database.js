@@ -886,87 +886,12 @@ async function getStadiumCourtsDataBooking(user_id) {
 }
 
 
-// ฟังก์ชันสำหรับเพิ่มสมาชิกในห้องปาร์ตี้
-function addMemberToParty(partyId, username) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE party
-        SET current_members = current_members + 1
-        WHERE id = ? AND current_members < total_members
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        if (results.affectedRows === 0) return reject(new Error('Party is full or does not exist'));
-        resolve(results);
-      });
-    });
-  }
+
   
-  // ฟังก์ชันสำหรับบันทึกสมาชิกในตาราง party_members
-  function addPartyMember(partyId, username) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        INSERT INTO party_members (party_id, username)
-        VALUES (?, ?)
-      `;
-      connection.query(query, [partyId, username], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
-  
-  // ฟังก์ชันสำหรับตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
-  function checkPartyFull(partyId) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        SELECT current_members, total_members, price_per_person
-        FROM party
-        WHERE id = ?
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results[0]);
-      });
-    });
-  }
-  
-  // ฟังก์ชันสำหรับหักคะแนนจากผู้ใช้
-  function deductPointsFromUsers(partyId, pricePerPerson) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE user
-        SET point = point - ?
-        WHERE username IN (
-          SELECT leader_username FROM party WHERE id = ?
-          UNION
-          SELECT username FROM party_members WHERE party_id = ?
-        )
-      `;
-      connection.query(query, [pricePerPerson, partyId, partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
-  
-  // ฟังก์ชันสำหรับอัปเดตสถานะห้องปาร์ตี้เป็น completed
-  function updatePartyStatus(partyId) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE party
-        SET status = 'completed'
-        WHERE id = ?
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
   
   
 
+  
 
 
   async function createParty(leaderUsername, courtId, totalMembers, userId, date, startTime, endTime, topic, detail) {
@@ -1055,90 +980,17 @@ function addMemberToParty(partyId, username) {
 }
 
 
-  function refundPoints(username, points) {
-    return new Promise((resolve, reject) => {
-      pool.getConnection((err, connection) => {
-        if (err) return reject(err);
-  
-        const query = `
-          UPDATE user
-          SET point = point + ?
-          WHERE username = ?
-        `;
-        connection.query(query, [points, username], (err, results) => {
-          connection.release();
-          if (err) return reject(err);
-          resolve(results);
-        });
-      });
-    });
-  }
+ 
 
 
   
-  // ฟังก์ชันสำหรับเพิ่มสมาชิกในห้องปาร์ตี้
-  function addMemberToParty(partyId, username) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE party
-        SET current_members = current_members + 1
-        WHERE id = ? AND current_members < total_members
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        if (results.affectedRows === 0) return reject(new Error('Party is full or does not exist'));
-        resolve(results);
-      });
-    });
-  }
   
-  // ฟังก์ชันสำหรับบันทึกสมาชิกในตาราง party_members
-  function addPartyMember(partyId, username) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        INSERT INTO party_members (party_id, username)
-        VALUES (?, ?)
-      `;
-      connection.query(query, [partyId, username], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
   
-  // ฟังก์ชันสำหรับตรวจสอบว่าห้องปาร์ตี้เต็มหรือไม่
-  function checkPartyFull(partyId) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        SELECT current_members, total_members, price_per_person
-        FROM party
-        WHERE id = ?
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results[0]);
-      });
-    });
-  }
   
-  // ฟังก์ชันสำหรับหักคะแนนจากผู้ใช้
-  function deductPointsFromUsers(partyId, pricePerPerson) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE user
-        SET point = point - ?
-        WHERE username IN (
-          SELECT leader_username FROM party WHERE id = ?
-          UNION
-          SELECT username FROM party_members WHERE party_id = ?
-        )
-      `;
-      connection.query(query, [pricePerPerson, partyId, partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
+  
+
+  
+  
   
   // ฟังก์ชันสำหรับอัปเดตสถานะห้องปาร์ตี้เป็น completed
   function updatePartyStatus(partyId) {
@@ -1156,7 +1008,7 @@ function addMemberToParty(partyId, username) {
   }
   
   // ฟังก์ชันสำหรับตรวจสอบคะแนนของผู้ใช้
-  // ฟังก์ชันสำหรับตรวจสอบคะแนนของผู้ใช้
+ 
 function checkUserPoints(username) {
     return new Promise((resolve, reject) => {
       const query = `
@@ -1571,42 +1423,12 @@ async function removeCartItem(cartId, user_id) {
 
 
 
-async function updateCartSelection(user_id, cartId, isSelected) {
-    console.log('🔹 Running updateCartSelection:', { user_id, cartId, isSelected });
-
-    const query = `
-        UPDATE cart
-        SET is_selected = ?
-        WHERE id = ? AND user_id = ?
-    `;
-
-    try {
-        const [results] = await connection.query(query, [isSelected, cartId, user_id]);
-        console.log('🔹 Database Result:', results);
-        return results;
-    } catch (error) {
-        console.error('❌ Database Error:', error);
-        throw error;
-    }
-}
 
 
-// ดึงรายการที่ถูกเลือกในตะกร้า
-async function getSelectedCartItems(user_id) {
-    const [selectedItems] = await connection.query(`
-        SELECT * FROM cart
-        WHERE user_id = ? AND is_selected = TRUE AND status = 'pending'
-    `, [user_id]);
-    return selectedItems;
-}
 
-// ดึงยอดเงินของผู้ใช้
-async function getUserBalance(user_id) {
-    const [userBalance] = await connection.query(`
-        SELECT point FROM user WHERE id = ?
-    `, [user_id]);
-    return userBalance.length ? userBalance[0].point : 0;
-}
+
+
+
 
 // เพิ่มรายการจองสนาม
 async function createReservation(user_id, item) {
@@ -1623,12 +1445,7 @@ async function removeFromCart(cartId) {
     `, [cartId]);
 }
 
-// หักเงินจากบัญชีผู้ใช้
-async function deductUserBalance(user_id, amount) {
-    await connection.query(`
-        UPDATE user SET point = point - ? WHERE id = ?
-    `, [amount, user_id]);
-}
+
 
 
 
@@ -2151,21 +1968,21 @@ module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,getPartyMembers,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,getPendingParties,
     addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,
-    addPartyMember,createParty,
-    addMemberToParty, checkcourtDuplicate,insertReport,
+createParty,
+     checkcourtDuplicate,insertReport,
     
-    checkPartyFull,joinParty,checkReserv,
+    joinParty,checkReserv,
   
     updatePartyStatus,getStadiumCourtsDatabystid,getPictures,cancelReservation,
     checkUserPoints,
     leaveParty,getStadiumDatabystid,
     
-    deductPointsFromUsers,refundPoints,addToCart,getCartItems,removeCartItem,updateCartSelection,checkoutCart,getNotificationsByUserId,
-    getSelectedCartItems,
-    getUserBalance,
+  addToCart,getCartItems,removeCartItem,checkoutCart,getNotificationsByUserId,
+    
+   
     createReservation,
     removeFromCart,
-    deductUserBalance, addNewNotification,
+    addNewNotification,
     
    getStadiumCourtsDataBooking,getBookingData, getStadiumWithTwoColumns,changePassword,getCourt,addReservation,checkReservationDuplicate,getCourtReservation,getStadiumData,getStadiumCourtsData,updateCourtStatus ,getReservationsByUserId,getReviewsByStadiumId,getFacilitiesByStadium ,addReview,getStadiumPhoto,updateExchangePoint ,getStadiumSortedByDistancemobile,getStadiumByLocation,transaction,updateUserPoint, getpoint,deleteExchangePoint
 };

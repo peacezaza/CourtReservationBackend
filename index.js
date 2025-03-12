@@ -21,8 +21,6 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
 const {getCountryData, getStates} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
-const { OAuth2Client } = require('google-auth-library');
-const client = new OAuth2Client('90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com');
 
 const fs = require('fs');
 const path = require('path');
@@ -564,6 +562,26 @@ app.get("/home", authenticateToken, async (req, res) => {
         return res.status(500).json({ error: "An error occurred while processing your request." });
     }
 });
+
+app.get('/reservations', authenticateToken, async (req, res) => {
+    try {
+        const user = decodeToken(req.headers.authorization.split(" ")[1]);
+        const id = user.userData.id;
+
+        // เรียกใช้ฟังก์ชัน getReservationsByUserId ด้วย async/await
+        const reservations = await getReservationsByUserId(id);
+
+        // ถ้าพบการจอง
+        if (reservations.length > 0) {
+            res.json(reservations);
+        } else {
+            res.status(404).send('ไม่พบการจองสำหรับผู้ใช้ที่ระบุ');
+        }
+    } catch (err) {
+        console.error('Error fetching reservations:', err);
+        res.status(500).send('เกิดข้อผิดพลาดในการเรียกใช้แบบสอบถาม');
+    }
+});
   
 
 
@@ -959,7 +977,7 @@ app.post("/checkout", authenticateToken, async (req, res) => {
   
     if (result.success) {
       
-      const res2= await addNewNotification(user_id, 'addedNewReservation');
+      const res2= await addNewNotification(user_id, 'NewReservation');
       
       return res.status(200).json(result);
     } else {
@@ -1051,9 +1069,10 @@ app.post('/report', authenticateToken,async (req, res) => {
 
 
 
-app.post('/cancel_reservation', async (req, res) => {
-    const { reservationId, userId } = req.body;
-
+app.post('/cancel_reservation', authenticateToken , async (req, res) => {
+   
+    const { reservationId } = req.body;
+    const userId = req.user.userData.id;
     // ตรวจสอบข้อมูลที่จำเป็น
     if (!reservationId || !userId) {
         return res.status(400).json({ error: 'Missing required fields: reservationId or userId' });
@@ -1072,62 +1091,7 @@ app.post('/cancel_reservation', async (req, res) => {
 
 
 
-app.post("/google-signup", async (req, res) => {
-    try{
-        const token = req.body.credential;
-        const user_type = req.body.user_type
-        if (!token) {
-            return res.status(400).json({ success: false, message: "No token provided" });
-        }
 
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: '90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com',
-        });
-
-        const payload = ticket.getPayload();
-        const { email, given_name, family_name, sub: googleId } = payload;
-        console.log(payload)
-        if(!await checkDuplicate(email, "email", "user")){
-            console.log("PASSED")
-            const newUser = await insertNewUser(null,email,"1",user_type, 0)
-            const userId = newUser.insertId
-            if(newUser){
-                // const updateData = await updateUserdata()
-                if(await updateUserdata(userId, given_name, family_name, null)){
-                    console.log("Updated")
-                }
-                const user = await getUserInfo(email, "email")
-                console.log(user)
-                const token = await createToken(user)
-                return res.status(200).json({
-                    success : true,
-                    "message": "Logged in Successfully",
-                    "token": token,
-                })
-            }
-        }else{
-            const user = await getUserInfo(email, "email")
-            if(await login(email, "email", "1")){
-                const token = await createToken(user)
-                console.log(user)
-                return res.status(200).json({
-                    success : true,
-                    "message": "Logged in Successfully",
-                    "token": token,
-                })
-            }else{
-                return res.status(401).json({
-                    success:false,
-                    message : "email already exists"
-                });
-            }
-        }
-    }
-    catch (error){
-        console.log(error)
-    }
-})
 
 
 
