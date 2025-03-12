@@ -10,6 +10,7 @@
   },
   "private": true,
   "dependencies": {
+    "@fortune-inc/tw-voucher": "^1.0.11",
     "@opecgame/twapi": "^1.2.1",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",

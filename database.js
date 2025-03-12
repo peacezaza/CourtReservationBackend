@@ -1267,7 +1267,7 @@ function checkUserPoints(username) {
 
                 if (user.length > 0) {
                     const userId = user[0].id;
-                    await addNewNotification(userId, 'หัวหน้าห้องปาร์ตี้ได้ยกเลิกการจอง คะแนนถูกคืนแล้ว');
+                    await addNewNotification(userId, 'party cancel');
                 }
             }
         }
@@ -1368,7 +1368,7 @@ async function joinParty(partyId, username) {
                 `, [member.username]);
 
                 if (user.length > 0) {
-                    await addNewNotification(user[0].id, 'ห้องปาร์ตี้ของคุณถูกยกเลิกเนื่องจากมีการจองที่ชนกัน คะแนนถูกคืนแล้ว');
+                    await addNewNotification(user[0].id, 'NoCourtAvailabile');
                 }
             }
 

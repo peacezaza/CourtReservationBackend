@@ -959,7 +959,7 @@ app.post("/checkout", authenticateToken, async (req, res) => {
   
     if (result.success) {
       
-      const res2= await addNewNotification(user_id, 'NewReservation');
+      const res2= await addNewNotification(user_id, 'addedNewReservation');
       
       return res.status(200).json(result);
     } else {
