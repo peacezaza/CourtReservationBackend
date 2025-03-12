@@ -403,21 +403,21 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 async function getStadiumSortedByDistancemobile(currentLatitude, currentLongitude, column, verify) {
     try {
         const query = `
-           SELECT s.*, 
-       GROUP_CONCAT(DISTINCT p.path) AS pictures,
-       GROUP_CONCAT(DISTINCT court_type.type) AS facility_type,
-       GROUP_CONCAT(DISTINCT f.name) AS facility_names,
-       u.email
-FROM stadium s
-LEFT JOIN picture p ON s.id = p.stadium_id
-LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
-LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
-LEFT JOIN stadium_facility sf ON s.id = sf.stadium_id
-LEFT JOIN facility f ON sf.facility_id = f.id
-LEFT JOIN user u ON s.owner_id = u.id
-WHERE s.?? = ?
-GROUP BY s.id, u.email;
-`;
+            SELECT s.*, 
+                GROUP_CONCAT(DISTINCT p.path) AS pictures,
+                GROUP_CONCAT(DISTINCT court_type.type) AS facility_type,
+                GROUP_CONCAT(DISTINCT f.name) AS facility_names,
+                u.email
+            FROM stadium s
+            LEFT JOIN picture p ON s.id = p.stadium_id
+            LEFT JOIN stadium_courttype ON s.id = stadium_courttype.stadium_id
+            LEFT JOIN court_type ON court_type.id = stadium_courttype.court_type_id
+            LEFT JOIN stadium_facility sf ON s.id = sf.stadium_id
+            LEFT JOIN facility f ON sf.facility_id = f.id
+            LEFT JOIN user u ON s.owner_id = u.id
+            WHERE s.?? = ?
+            GROUP BY s.id, u.email;
+        `;
 
         const [stadiums] = await connection.query(query, [column, verify]);
 
@@ -428,10 +428,18 @@ GROUP BY s.id, u.email;
 
             const distance = haversineDistance(currentLatitude, currentLongitude, latitude, longitude);
 
+            // แปลง path ของรูปภาพให้เป็น URL ที่ถูกต้อง
+            const pictures = stadium.pictures
+                ? stadium.pictures.split(",").map(path => ({
+                      path: path,
+                      photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+                  }))
+                : [];
+
             return {
                 ...stadium,
-                pictures: stadium.pictures ? stadium.pictures.split(",") : [],
-                distance: distance.toFixed(2) // Show 2 decimal places
+                pictures: pictures, // ใช้รูปภาพที่แปลงแล้ว
+                distance: distance.toFixed(2) // แสดงทศนิยม 2 ตำแหน่ง
             };
         });
 
@@ -1721,17 +1729,17 @@ async function removeFromCart(cartId) {
 
     async function getPendingParties() {
         const query = `
-            SELECT 
+            SELECT  
                 p.id AS party_id,
-                p.leader_username,
-                p.court_id,
-                p.total_members,
-                p.current_members,
-                p.price_per_person,
-                p.date,
-                p.start_time,
-                p.end_time,
-                p.topic,
+                p.leader_username, 
+                p.court_id, 
+                p.total_members,  
+                p.current_members,  
+                p.price_per_person,  
+                p.date,  
+                p.start_time, 
+                p.end_time, 
+                p.topic, 
                 p.detail,
                 c.court_number,  -- หมายเลขสนาม
                 ct.type AS court_type,
@@ -1767,10 +1775,16 @@ async function removeFromCart(cartId) {
                 return [];
             }
     
-            // แปลงข้อมูลรูปภาพจาก string ที่รวมกันด้วย comma เป็น array
+            // แปลงข้อมูลรูปภาพจาก string ที่รวมกันด้วย comma เป็น array ของ object
             const formattedResult = result.map(party => ({
                 ...party,
-                pictures: party.pictures ? party.pictures.split(',') : []  // แปลงรูปภาพเป็น array
+                pictures: party.pictures
+                    ? party.pictures.split(',').map(path => ({
+                          path: path,
+                          photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+                      }))
+                    : [],  // แปลงรูปภาพเป็น array ของ object
+                members: party.members ? party.members.split(',') : []  // แปลงสมาชิกเป็น array
             }));
     
             return formattedResult;  // คืนค่าผลลัพธ์ห้องปาร์ตี้
