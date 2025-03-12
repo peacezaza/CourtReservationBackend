@@ -7,7 +7,7 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsD
     getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,getPictures,
     getSelectedCartItems,checkReserv,
     getUserBalance,
-    createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,getPendingParties,
+    createReservation,getStadiumDatabystid,getStadiumCourtsDatabystid,getPendingParties,cancelReservation,
     removeFromCart,
     deductUserBalance,updateStadiumRating,addToCart,getCartItems,removeCartItem ,getBookingData,createParty,refundPoints,insertReport,
     addMemberToParty,joinParty,
@@ -1049,7 +1049,23 @@ app.post('/report', authenticateToken,async (req, res) => {
 
 
 
+app.post('/cancel_reservation', async (req, res) => {
+    const { reservationId, userId } = req.body;
 
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!reservationId || !userId) {
+        return res.status(400).json({ error: 'Missing required fields: reservationId or userId' });
+    }
+
+    try {
+        // ยกเลิกการจอง
+        const result = await cancelReservation(reservationId, userId);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error in /cancel-reservation API:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 
 

@@ -1489,11 +1489,29 @@ async function getPartyMembers(partyId) {
 
 async function addToCart(user_id, stadium_id, court_id, date, start_time, end_time) {
     try {
-        const query = `
+        // ตรวจสอบว่ามีรายการในรถเข็นที่ซ้ำกันหรือไม่
+        const checkQuery = `
+            SELECT id
+            FROM cart
+            WHERE user_id = ?
+              AND date = ?
+              AND start_time = ?
+              AND end_time = ?
+        `;
+        const [existingItems] = await connection.query(checkQuery, [user_id, date, start_time, end_time]);
+
+        // ถ้ามีรายการที่ซ้ำกัน
+        if (existingItems.length > 0) {
+            throw new Error('This item is already in the cart');
+        }
+
+        // เพิ่มรายการใหม่ลงในรถเข็น
+        const insertQuery = `
             INSERT INTO cart (user_id, stadium_id, court_id, date, start_time, end_time)
             VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const [results] = await connection.query(query, [user_id, stadium_id, court_id, date, start_time, end_time]);
+        const [results] = await connection.query(insertQuery, [user_id, stadium_id, court_id, date, start_time, end_time]);
+
         return results.insertId; // ส่งกลับ ID ของรายการที่เพิ่มเข้าไปในรถเข็น
     } catch (error) {
         console.error("Error adding item to cart:", error);
@@ -1994,6 +2012,109 @@ async function deductUserBalance(user_id, amount) {
     }
 
 
+    async function cancelReservation(reservationId, userId) {
+        try {
+            await connection.beginTransaction();
+    
+            // ตรวจสอบว่าการจองนี้เป็นของ user นี้หรือไม่
+            const [reservation] = await connection.query(
+                `SELECT id, date, start_time, end_time, status, court_id, stadium_id
+                 FROM reservation
+                 WHERE id = ? AND user_id = ?`,
+                [reservationId, userId]
+            );
+    
+            if (reservation.length === 0) {
+                throw new Error('Reservation not found or does not belong to the user');
+            }
+    
+            const { date, start_time, end_time, status, court_id, stadium_id } = reservation[0];
+    
+            // ตรวจสอบสถานะการจอง
+            if (status === 'cancelled') {
+                throw new Error('Reservation is already canceled');
+            }
+    
+            // ตรวจสอบว่าการจองนี้เป็นการจองแบบกลุ่มหรือไม่
+            const [party] = await connection.query(
+                `SELECT id
+                 FROM party
+                 WHERE reservation_id = ?`,
+                [reservationId]
+            );
+    
+            if (party.length > 0) {
+                throw new Error('Cannot cancel a group reservation');
+            }
+    
+            // ตรวจสอบว่าเวลาจองผ่านไปแล้วหรือไม่
+            const now = new Date();
+            const reservationEndDateTime = new Date(`${date}T${end_time}`);
+            if (now > reservationEndDateTime) {
+                throw new Error('Cannot cancel reservation after the end time');
+            }
+    
+            // ตรวจสอบว่าเหลือเวลาน้อยกว่า 1 ชั่วโมงหรือไม่
+            const reservationDateTime = new Date(`${date}T${start_time}`);
+            const timeDifference = (reservationDateTime - now) / (1000 * 60 * 60); // คำนวณเป็นชั่วโมง
+    
+            if (timeDifference < 1) {
+                throw new Error('Cannot cancel reservation less than 1 hour before the start time');
+            }
+    
+            // ดึงราคาต่อชั่วโมงของสนาม
+            const [priceResult] = await connection.query(
+                `SELECT price_per_hr
+                 FROM stadium_courttype
+                 WHERE stadium_id = ? AND court_type_id = (
+                     SELECT court_type_id
+                     FROM court
+                     WHERE id = ?
+                 )`,
+                [stadium_id, court_id]
+            );
+    
+            if (priceResult.length === 0) {
+                throw new Error('Failed to retrieve price information');
+            }
+    
+            const pricePerHour = priceResult[0].price_per_hr;
+    
+            // คืนคะแนนให้ผู้ใช้
+            await connection.query(
+                `UPDATE user
+                 SET point = point + ?
+                 WHERE id = ?`,
+                [pricePerHour, userId]
+            );
+    
+            // เปลี่ยนสถานะการจองเป็น cancel
+            await connection.query(
+                `UPDATE reservation
+                 SET status = 'cancelled'
+                 WHERE id = ?`,
+                [reservationId]
+            );
+    
+            await connection.commit();
+            return { success: true, message: 'Reservation canceled successfully', refundedPoints: pricePerHour };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error canceling reservation:', error);
+            throw error;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,getPartyMembers,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,getPendingParties,
@@ -2003,7 +2124,7 @@ module.exports = {
     
     checkPartyFull,joinParty,checkReserv,
   
-    updatePartyStatus,getStadiumCourtsDatabystid,getPictures,
+    updatePartyStatus,getStadiumCourtsDatabystid,getPictures,cancelReservation,
     checkUserPoints,
     leaveParty,getStadiumDatabystid,
     
