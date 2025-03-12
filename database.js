@@ -1729,99 +1729,114 @@ async function deductUserBalance(user_id, amount) {
 
     async function checkoutCart(user_id, cart_ids) {
         try {
-          // ดึงข้อมูล point ของ user
-          const userQuery = `
-            SELECT point FROM user WHERE id = ?
-          `;
-          const [userData] = await connection.query(userQuery, [user_id]);
-      
-          if (userData.length === 0) {
-            return { success: false, message: "User not found." };
-          }
-      
-          let userPoint = userData[0].point; // เปลี่ยน const เป็น let
-      
-          // ตรวจสอบและประมวลผลแต่ละ cart
-          for (const cart_id of cart_ids) {
-            // ดึงข้อมูลจาก cart
-            const cartQuery = `
-              SELECT * FROM cart 
-              WHERE id = ? AND user_id = ? AND status = 'pending'
+            // ดึงข้อมูล point ของ user
+            const userQuery = `
+                SELECT point FROM user WHERE id = ?
             `;
-            const [cartData] = await connection.query(cartQuery, [cart_id, user_id]);
-      
-            if (cartData.length === 0) {
-              return { success: false, message: `Cart ${cart_id} not found or already processed.` };
+            const [userData] = await connection.query(userQuery, [user_id]);
+    
+            if (userData.length === 0) {
+                return { success: false, message: "User not found." };
             }
-      
-            const { stadium_id, court_id, date, start_time, end_time } = cartData[0];
-      
-            // ตรวจสอบการจองซ้ำ
-            const isDuplicate = await checkReserv(court_id, date, start_time, end_time);
-            if (isDuplicate) {
-              // ลบข้อมูลใน cart เนื่องจากมีการจองซ้ำ
-              await deleteCart(cart_id);
-              return { success: false, message: `The court in cart ${cart_id} is already reserved for the selected time.` };
+    
+            let userPoint = userData[0].point; // เปลี่ยน const เป็น let
+    
+            // ตรวจสอบและประมวลผลแต่ละ cart
+            for (const cart_id of cart_ids) {
+                // ดึงข้อมูลจาก cart
+                const cartQuery = `
+                    SELECT * FROM cart 
+                    WHERE id = ? AND user_id = ? AND status = 'pending'
+                `;
+                const [cartData] = await connection.query(cartQuery, [cart_id, user_id]);
+    
+                if (cartData.length === 0) {
+                    return { success: false, message: `Cart ${cart_id} not found or already processed.` };
+                }
+    
+                 let { stadium_id, court_id, date, start_time, end_time } = cartData[0];
+    
+          // แปลงเป็น string เพื่อความปลอดภัย
+          date = date.toISOString().split("T")[0]; // YYYY-MM-DD
+          start_time = start_time.toString().padStart(8, "0"); // HH:MM:SS
+          end_time = end_time.toString().padStart(8, "0"); // HH:MM:SS
+  
+          const now = new Date();
+          const startDateTime = new Date(`${date}T${start_time}Z`); // ใช้ Z เพื่อบังคับเป็น UTC
+          const endDateTime = new Date(`${date}T${end_time}Z`);
+          console.log("Start Time:", startDateTime);
+          console.log("End Time:", endDateTime);
+  
+                // ตรวจสอบว่าเวลาจองผ่านไปแล้วหรือไม่
+                if (now > endDateTime) {
+                    await deleteCart(cart_id);
+                    return { success: false, message: `Cannot reserve cart ${cart_id} because the reservation time has passed.` };
+                    
+                }
+    
+                // ตรวจสอบการจองซ้ำ
+                const isDuplicate = await checkReserv(court_id, date, start_time, end_time);
+                if (isDuplicate) {
+                    // ลบข้อมูลใน cart เนื่องจากมีการจองซ้ำ
+                    await deleteCart(cart_id);
+                    return { success: false, message: `The court in cart ${cart_id} is already reserved for the selected time.` };
+                }
+    
+                // ดึงข้อมูลราคาจองสนามจากตาราง stadium_courttype
+                const priceQuery = `
+                    SELECT price_per_hr FROM stadium_courttype
+                    WHERE stadium_id = ? AND court_type_id = (
+                        SELECT court_type_id FROM court WHERE id = ?
+                    )
+                `;
+                const [priceData] = await connection.query(priceQuery, [stadium_id, court_id]);
+    
+                if (priceData.length === 0) {
+                    return { success: false, message: `Price information not found for cart ${cart_id}.` };
+                }
+    
+                const pricePerHour = priceData[0].price_per_hr;
+    
+                // คำนวณราคารวม
+                const start = new Date(`1970-01-01T${start_time}`);
+                const end = new Date(`1970-01-01T${end_time}`);
+                const durationInHours = (end - start) / (1000 * 60 * 60); // คำนวณระยะเวลาเป็นชั่วโมง
+                const totalPrice = pricePerHour * durationInHours;
+    
+                // ตรวจสอบว่า point เพียงพอหรือไม่
+                if (userPoint < totalPrice) {
+                    return { success: false, message: `Insufficient points for cart ${cart_id}.` };
+                }
+    
+                // ลด point ของ user
+                userPoint -= totalPrice; // ตอนนี้สามารถกำหนดค่าใหม่ได้
+                const updateUserPointQuery = `
+                    UPDATE user 
+                    SET point = ? 
+                    WHERE id = ?
+                `;
+                await connection.query(updateUserPointQuery, [userPoint, user_id]);
+    
+                // เพิ่มข้อมูลการจองลงในตาราง reservation
+                const insertReservationQuery = `
+                    INSERT INTO reservation (court_id, stadium_id, date, user_id, start_time, end_time, status)
+                    VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
+                `;
+                await connection.query(insertReservationQuery, [
+                    court_id, stadium_id, date, user_id, start_time, end_time
+                ]);
+    
+                // ลบข้อมูลใน cart เนื่องจากจองสำเร็จ
+                await deleteCart(cart_id);
+                const res3 = await transaction(user_id, totalPrice, 'purchase');
             }
-      
-            // ดึงข้อมูลราคาจองสนามจากตาราง stadium_courttype
-            const priceQuery = `
-              SELECT price_per_hr FROM stadium_courttype
-              WHERE stadium_id = ? AND court_type_id = (
-                SELECT court_type_id FROM court WHERE id = ?
-              )
-            `;
-            const [priceData] = await connection.query(priceQuery, [stadium_id, court_id]);
-      
-            if (priceData.length === 0) {
-              return { success: false, message: `Price information not found for cart ${cart_id}.` };
-            }
-      
-            const pricePerHour = priceData[0].price_per_hr;
-      
-            // คำนวณราคารวม
-            const start = new Date(`1970-01-01T${start_time}`);
-            const end = new Date(`1970-01-01T${end_time}`);
-            const durationInHours = (end - start) / (1000 * 60 * 60); // คำนวณระยะเวลาเป็นชั่วโมง
-            const totalPrice = pricePerHour * durationInHours;
-      
-            // ตรวจสอบว่า point เพียงพอหรือไม่
-            if (userPoint < totalPrice) {
-              return { success: false, message: `Insufficient points for cart ${cart_id}.` };
-            }
-      
-            // ลด point ของ user
-            userPoint -= totalPrice; // ตอนนี้สามารถกำหนดค่าใหม่ได้
-            const updateUserPointQuery = `
-              UPDATE user 
-              SET point = ? 
-              WHERE id = ?
-            `;
-            await connection.query(updateUserPointQuery, [userPoint, user_id]);
-      
-            // เพิ่มข้อมูลการจองลงในตาราง reservation
-            const insertReservationQuery = `
-              INSERT INTO reservation (court_id, stadium_id, date, user_id, start_time, end_time, status)
-              VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
-            `;
-            await connection.query(insertReservationQuery, [
-              court_id, stadium_id, date, user_id, start_time, end_time
-            ]);
-      
-            // ลบข้อมูลใน cart เนื่องจากจองสำเร็จ
-            await deleteCart(cart_id);
-            const res3= await transaction(user_id, totalPrice,'purchase');
-
-
-          }
-
-      
-          return { success: true, message: "Payment and reservation completed successfully for all selected carts." };
+    
+            return { success: true, message: "Payment and reservation completed successfully for all selected carts." };
         } catch (error) {
-          console.error("Error during checkout:", error);
-          return { success: false, message: "An error occurred during checkout." };
+            console.error("Error during checkout:", error);
+            return { success: false, message: "An error occurred during checkout." };
         }
-      }
+    }
     
     // ฟังก์ชันสำหรับลบข้อมูลใน cart
     async function deleteCart(cart_id) {
