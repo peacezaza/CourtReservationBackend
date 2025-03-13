@@ -3,7 +3,7 @@
 
 
 const { connectDatabase, checkDuplicate, insertNewUser, login, getStadiumCourtsDataBooking,getUserInfo, addStadium, getStadiumInfo, addFacilityList,getPartyMembers,
-    addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,
+    addStadiumFacility, getData, addCourtType, getCourtType,getAverageRating, addCourt, addStadiumCourtType, getStadiumWithTwoColumns,checkAndCancelExpiredParties,
     getStadiumPhoto , getExchange_point ,sentVoucherAmount,getCurrentRating,updateCartSelection,checkoutCart, checkcourtDuplicate,getPictures,
     getSelectedCartItems,checkReserv,
     getUserBalance,
@@ -821,17 +821,17 @@ app.put("/change_password", authenticateToken, async (req, res) => {
 
 app.post('/party/join', authenticateToken, async (req, res) => {
     const user = req.user;
-    //const user_id = user.userData.id;
     const username = user.userData.username;
-    const {partyid}= req.body;
-   
-   
+    const { partyid } = req.body;
 
     try {
+        await checkAndCancelExpiredParties(partyid); 
         const result = await joinParty(partyid, username);
         res.status(200).json(result);
     } catch (err) {
-        if (err.message === 'Party not found') {
+        if (err.message === 'Party expired') {  
+            res.status(400).json({ error: err.message });
+        } else if (err.message === 'Party not found') {
             res.status(404).json({ error: err.message });
         } else if (err.message === 'Party is full') {
             res.status(400).json({ error: err.message });
@@ -840,10 +840,11 @@ app.post('/party/join', authenticateToken, async (req, res) => {
         } else if (err.message === 'User does not have enough points to join the party') {
             res.status(400).json({ error: err.message });
         } else {
-            res.status(500).json({ error: err.message });
+            res.status(500).json({ error: 'Internal server error' });
         }
     }
 });
+
 
 
   

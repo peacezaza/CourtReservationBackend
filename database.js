@@ -1021,7 +1021,7 @@ async function getStadiumCourtsDataBooking(user_id) {
         }
 
         const { leader_username, current_members, total_members, status, price_per_person } = party[0];
-
+        
         if (status === 'cancel') {
             throw new Error('Party is already canceled');
         }
@@ -1130,7 +1130,12 @@ async function joinParty(partyId, username) {
             throw new Error('Party not found');
         }
 
-        const { current_members, total_members, price_per_person, court_id, date, start_time, end_time, status } = partyResults[0];
+        let{ current_members, total_members, price_per_person, court_id, date, start_time, end_time, status } = partyResults[0];
+
+       
+    
+       
+
 
         if (status === 'cancel') {
             throw new Error('Party is already canceled');
@@ -1150,6 +1155,9 @@ async function joinParty(partyId, username) {
         if (memberCheckResults.length > 0) {
             throw new Error('User is already in the party');
         }
+
+
+        
 
         // ตรวจสอบว่ามีการจองที่ชนกันหรือไม่
         const [reservationResults] = await connection.query(`
@@ -1944,7 +1952,65 @@ async function removeFromCart(cartId) {
     }
     
 
-
+    async function checkAndCancelExpiredParties(partyId) {
+        try {
+            const now = new Date();
+            const formattedDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+            const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
+    
+            // ดึงข้อมูลปาร์ตี้ที่กำลังตรวจสอบ
+            const [partyResults] = await connection.query(`
+                SELECT id, end_time, price_per_person, status
+                FROM party
+                WHERE id = ? AND date <= ? AND end_time <= ? AND status NOT IN ('cancel', 'completed')
+            `, [partyId, formattedDate, formattedTime]);
+    
+            if (partyResults.length > 0) {
+                const { price_per_person } = partyResults[0];
+    
+                // ดึงสมาชิกทั้งหมดในปาร์ตี้
+                const [membersResults] = await connection.query(`
+                    SELECT username FROM party_members WHERE party_id = ?
+                `, [partyId]);
+    
+                for (const member of membersResults) {
+                    const { username } = member;
+    
+                    // คืนคะแนนให้สมาชิก
+                    await connection.query(`
+                        UPDATE user SET point = point + ? WHERE username = ?
+                    `, [price_per_person, username]);
+    
+                    // ดึง user_id เพื่อนำไปใช้แจ้งเตือน
+                    const [user] = await connection.query(`
+                        SELECT id FROM user WHERE username = ?
+                    `, [username]);
+    
+                    if (user.length > 0) {
+                        await addNewNotification(user[0].id, 'PartyExpired');
+                    }
+                }
+    
+                // ลบสมาชิกทั้งหมดออกจากตาราง party_members
+                await connection.query(`
+                    DELETE FROM party_members WHERE party_id = ?
+                `, [partyId]);
+    
+                // อัปเดตสถานะปาร์ตี้เป็น "cancel"
+                await connection.query(`
+                    UPDATE party SET status = 'cancel' WHERE id = ?
+                `, [partyId]);
+    
+                throw new Error('Party expired'); // ❗ ปาร์ตี้หมดเวลา -> โยน Error ออกไป
+            }
+        } catch (error) {
+            console.error("Error in checkAndCancelExpiredParties:", error);
+            throw error;
+        }
+    }
+    
+    
+    
 
 
 
@@ -1953,7 +2019,7 @@ async function removeFromCart(cartId) {
 module.exports = {
     connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, getExchange_point, sentVoucherAmount,getPartyMembers,
     insertNotification, addStadium, getStadiumInfo, addStadiumPhoto, addFacilityList, addStadiumFacility, getData,getPendingParties,
-    addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,
+    addCourtType, getCourtType, addCourt,getCurrentRating,getAverageRating,updateStadiumRating, addStadiumCourtType,checkAndCancelExpiredParties,
 createParty,
      checkcourtDuplicate,insertReport,
     
