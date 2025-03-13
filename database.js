@@ -1958,7 +1958,8 @@ async function removeFromCart(cartId) {
             const now = new Date();
             const formattedDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
             const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
-    
+            console.log(formattedDate);
+            console.log(formattedTime);
             // ดึงข้อมูลปาร์ตี้ที่กำลังตรวจสอบ
             const [partyResults] = await connection.query(`
                 SELECT id, end_time, price_per_person, status

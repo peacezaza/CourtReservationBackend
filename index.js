@@ -825,7 +825,10 @@ app.post('/party/join', authenticateToken, async (req, res) => {
     const { partyid } = req.body;
 
     try {
-        await checkAndCancelExpiredParties(partyid); 
+       const re=  await checkAndCancelExpiredParties(partyid); 
+       if (err.message === 'Party expired') {  
+        res.status(400).json({ error: err.message });
+    } 
         const result = await joinParty(partyid, username);
         res.status(200).json(result);
     } catch (err) {
