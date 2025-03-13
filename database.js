@@ -1563,7 +1563,7 @@ async function removeFromCart(cartId) {
                  let { stadium_id, court_id, date, start_time, end_time } = cartData[0];
     
           // แปลงเป็น string เพื่อความปลอดภัย
-          date = date.toISOString().split("T")[0]; // YYYY-MM-DD
+         // date = date.toISOString().split("T")[0]; // YYYY-MM-DD
           start_time = start_time.toString().padStart(8, "0"); // HH:MM:SS
           end_time = end_time.toString().padStart(8, "0"); // HH:MM:SS
   
