@@ -1,7 +1,9 @@
 const { hashPassword, comparePassword } = require('./encryption');
 const mysql = require('mysql2/promise');
 const twvoucher = require('@fortune-inc/tw-voucher');
-
+//http://10.0.2.2:3000 for emulator 
+//http://localhost:3000
+const BASE_URL = "http://localhost:3000";
 let connection;
 
 async function connectDatabase() {
@@ -432,7 +434,7 @@ async function getStadiumSortedByDistancemobile(currentLatitude, currentLongitud
             const pictures = stadium.pictures
                 ? stadium.pictures.split(",").map(path => ({
                       path: path,
-                      photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+                      photoUrl: `${BASE_URL}/${path.replace(/\\/g, '/')}`   // แปลง path ให้เป็น URL ที่ถูกต้อง
                   }))
                 : [];
 
@@ -510,7 +512,7 @@ async function getReservationsByUserId(userId) {
             ...reservation,
             pictures: reservation.pictures ? reservation.pictures.split(',').map(path => ({
                 path: path,
-                photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+                photoUrl: `${BASE_URL}/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
             })) : [],  // แปลงรูปภาพเป็น array ของ object
             members: reservation.members ? reservation.members.split(',') : []     // แปลงสมาชิกเป็น array
         }));
