@@ -2001,7 +2001,7 @@ async function removeFromCart(cartId) {
                     UPDATE party SET status = 'cancel' WHERE id = ?
                 `, [partyId]);
     
-                throw new Error('Party expired'); // ❗ ปาร์ตี้หมดเวลา -> โยน Error ออกไป
+                throw new Error('partycancel'); // ❗ ปาร์ตี้หมดเวลา -> โยน Error ออกไป
             }
         } catch (error) {
             console.error("Error in checkAndCancelExpiredParties:", error);
