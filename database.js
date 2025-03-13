@@ -1563,23 +1563,39 @@ async function removeFromCart(cartId) {
                  let { stadium_id, court_id, date, start_time, end_time } = cartData[0];
     
           // แปลงเป็น string เพื่อความปลอดภัย
-         // date = date.toISOString().split("T")[0]; // YYYY-MM-DD
-          start_time = start_time.toString().padStart(8, "0"); // HH:MM:SS
-          end_time = end_time.toString().padStart(8, "0"); // HH:MM:SS
+          date1 = date.toISOString().split("T")[0]; // YYYY-MM-DD
+          start_time1 = start_time.toString().padStart(8, "0"); // HH:MM:SS
+          end_time1 = end_time.toString().padStart(8, "0"); // HH:MM:SS
   
+          
           const now = new Date();
-          const startDateTime = new Date(`${date}T${start_time}Z`); // ใช้ Z เพื่อบังคับเป็น UTC
-          const endDateTime = new Date(`${date}T${end_time}Z`);
-          console.log("Start Time:", startDateTime);
-          console.log("End Time:", endDateTime);
-  
-                // ตรวจสอบว่าเวลาจองผ่านไปแล้วหรือไม่
-                if (now > endDateTime) {
-                    await deleteCart(cart_id);
-                    return { success: false, message: `Cannot reserve cart ${cart_id} because the reservation time has passed.` };
-                    
-                }
-    
+          const timestampUTC = now.getTime() - (24 * 60 * 60 * 1000); // ลบ 1 วัน
+          const adjustedTimestamp = timestampUTC + (7 * 60 * 60 * 1000); // บวก 7 ชั่วโมง
+          const adjustedDate = new Date(adjustedTimestamp);
+          
+          console.log("📌 Current Date (before adjustment):", now.toISOString());
+          console.log("📌 Adjusted Date (after -1 day +7h):", adjustedDate.toISOString());
+          console.log("📌 Adjusted Timestamp:", adjustedDate.getTime());
+          
+          const startDateTime = new Date(`${date1}T${start_time1}`); 
+          const endDateTime = new Date(`${date1}T${end_time1}`);
+          
+          startDateTime.setHours(startDateTime.getHours() + 7);
+          endDateTime.setHours(endDateTime.getHours() + 7);
+          
+          console.log("🕒 Start Time:", startDateTime.toISOString(), "| Timestamp:", startDateTime.getTime());
+          console.log("🕒 End Time:", endDateTime.toISOString(), "| Timestamp:", endDateTime.getTime());
+          
+          // 🔴 เปรียบเทียบ timestamp แทน
+          if (adjustedDate.getTime() >= endDateTime.getTime()) { // เปลี่ยนเป็น '>='
+            console.log(`❌ Reservation expired for cart ${cart_id}`);
+            await deleteCart(cart_id);
+            return { success: false, message: `Cannot reserve cart ${cart_id} because the reservation time has passed.` };
+        } else {
+            console.log(`✅ Reservation is still valid.`);
+        }
+        
+          
                 // ตรวจสอบการจองซ้ำ
                 const isDuplicate = await checkReserv(court_id, date, start_time, end_time);
                 if (isDuplicate) {
@@ -1880,8 +1896,8 @@ async function removeFromCart(cartId) {
            end_time = end_time.toString().padStart(8, "0"); // HH:MM:SS
    
            const now = new Date();
-           const startDateTime = new Date(`${date}T${start_time}Z`); // ใช้ Z เพื่อบังคับเป็น UTC
-           const endDateTime = new Date(`${date}T${end_time}Z`);
+           const startDateTime = new Date(`${date}T${start_time}`); // ใช้ Z เพื่อบังคับเป็น UTC
+           const endDateTime = new Date(`${date}T${end_time}`);
    
            // Debug: เช็คค่าที่แปลงแล้ว
            console.log("Start Time:", startDateTime);
