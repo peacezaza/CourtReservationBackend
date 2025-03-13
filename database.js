@@ -1000,37 +1000,9 @@ async function getStadiumCourtsDataBooking(user_id) {
   
   
   
-  // ฟังก์ชันสำหรับอัปเดตสถานะห้องปาร์ตี้เป็น completed
-  function updatePartyStatus(partyId) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        UPDATE party
-        SET status = 'completed'
-        WHERE id = ?
-      `;
-      connection.query(query, [partyId], (err, results) => {
-        if (err) return reject(err);
-        resolve(results);
-      });
-    });
-  }
-  
-  // ฟังก์ชันสำหรับตรวจสอบคะแนนของผู้ใช้
  
-function checkUserPoints(username) {
-    return new Promise((resolve, reject) => {
-      const query = `
-        SELECT point
-        FROM user
-        WHERE username = ?
-      `;
-      connection.query(query, [username], (err, results) => {
-        if (err) return reject(err);
-        if (results.length === 0) return reject(new Error('User not found'));
-        resolve(results[0]);
-      });
-    });
-  }
+  
+
   
   async function leaveParty(partyId, username) {
     
@@ -1314,7 +1286,7 @@ async function joinParty(partyId, username) {
                 `, [member.username]);
 
                 if (user.length > 0) {
-                    await addNewNotification(user[0].id, 'ห้องปาร์ตี้ของคุณเต็มแล้วและได้รับการยืนยันการจอง');
+                    await addNewNotification(user[0].id, 'addedNewpartyReservation');
                 }
                 await transaction(user[0].id, price_per_person, 'purchase');
             }
@@ -1987,8 +1959,8 @@ createParty,
     
     joinParty,checkReserv,
   
-    updatePartyStatus,getStadiumCourtsDatabystid,getPictures,cancelReservation,
-    checkUserPoints,
+    getStadiumCourtsDatabystid,getPictures,cancelReservation,
+    
     leaveParty,getStadiumDatabystid,
     
   addToCart,getCartItems,removeCartItem,checkoutCart,getNotificationsByUserId,
