@@ -1569,8 +1569,8 @@ async function removeFromCart(cartId) {
   
           
           const now = new Date();
-          const timestampUTC = now.getTime() - (24 * 60 * 60 * 1000); // ลบ 1 วัน
-          const adjustedTimestamp = timestampUTC + (7 * 60 * 60 * 1000); // บวก 7 ชั่วโมง
+          const timestampUTC = now.getTime() - (24 * 60 * 60 * 1000); 
+          const adjustedTimestamp = timestampUTC + (7 * 60 * 60 * 1000); 
           const adjustedDate = new Date(adjustedTimestamp);
           
           console.log("📌 Current Date (before adjustment):", now.toISOString());
@@ -1586,8 +1586,8 @@ async function removeFromCart(cartId) {
           console.log("🕒 Start Time:", startDateTime.toISOString(), "| Timestamp:", startDateTime.getTime());
           console.log("🕒 End Time:", endDateTime.toISOString(), "| Timestamp:", endDateTime.getTime());
           
-          // 🔴 เปรียบเทียบ timestamp แทน
-          if (adjustedDate.getTime() >= endDateTime.getTime()) { // เปลี่ยนเป็น '>='
+          
+          if (adjustedDate.getTime() >= endDateTime.getTime()) { 
             console.log(`❌ Reservation expired for cart ${cart_id}`);
             await deleteCart(cart_id);
             return { success: false, message: `Cannot reserve cart ${cart_id} because the reservation time has passed.` };
