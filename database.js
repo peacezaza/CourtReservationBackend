@@ -36,8 +36,11 @@ async function insertNewUser(username, email, password, user_type, point) {
         const query = "INSERT INTO user (username, email, password, user_type, point) values(?, ?, ?, ?, ?)";
         const [result] = await connection.query(query, [username, email, hashedPassword, user_type, point]);
         console.log('Insert successful, ID:', result.insertId);
+
+        return (result.affectedRows > 0) ? result : null
     } catch (err) {
         console.log(err);
+        return null;
     }
 }
 
@@ -64,7 +67,7 @@ async function login(data, column, password) {
 }
 
 async function getUserInfo(data, column) {
-    const query = "SELECT id, username, email, user_type, point FROM user WHERE ?? = ?";
+    const query = "SELECT id, username, email, user_type, point, first_name FROM user WHERE ?? = ?";
     try {
         const [rows] = await connection.query(query, [column, data]);
         console.log(rows);
@@ -716,48 +719,294 @@ async function getTransaction(user_id, columns, data){
     }
 }
 
-async function getOverview(owner_id, location_status, startDate, endDate){
-    try{
+async function getOverview(owner_id, location_status, startDate, endDate) {
+    try {
         const query = `
-       SELECT
-            SUM(stadium_courttype.price_per_hr) AS total_amount,
-            COUNT(DISTINCT reservation.id) AS total_reservations,
-            COUNT(DISTINCT stadium.id) AS Active_location
-        FROM stadium
-        LEFT JOIN reservation ON stadium.id = reservation.stadium_id
-        LEFT JOIN court ON court.id = reservation.court_id
-        LEFT JOIN stadium_courttype
-            ON stadium_courttype.stadium_id = reservation.stadium_id
-            AND stadium_courttype.court_type_id = court.court_type_id
-        WHERE stadium.owner_id = ?
-          AND stadium.availability = ?
-          AND reservation.date BETWEEN ? AND ?
+            SELECT
+                SUM(COALESCE(stadium_courttype.price_per_hr, 0)) AS total_amount,
+                COALESCE(COUNT(DISTINCT reservation.id), 0) AS total_reservations,
+                COUNT(DISTINCT stadium.id) AS active_location
+            FROM stadium
+            LEFT JOIN reservation 
+                ON stadium.id = reservation.stadium_id 
+                AND reservation.date BETWEEN ? AND ?
+            LEFT JOIN court 
+                ON court.id = reservation.court_id
+            LEFT JOIN stadium_courttype 
+                ON stadium_courttype.stadium_id = stadium.id
+                AND stadium_courttype.court_type_id = court.court_type_id
+            WHERE stadium.owner_id = ?
+              AND stadium.availability = ?;
+        `;
+        const [result] = await connection.query(query, [startDate, endDate, owner_id, location_status]);
 
-`
-        const [result] = await connection.query(query, [owner_id, location_status, startDate, endDate])
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+        const totalHour = await getTotalUtilization(owner_id, true);
+        const totalReservations = parseInt(result[0]?.total_reservations || "0", 10);
+        const totalHours = parseInt(totalHour?.total_hours || "0", 10) * diffDays;
+        const utilRate = totalHours > 0 ? totalReservations / totalHours : 0;
+
+        // console.log(`Total Days: ${diffDays}`);
+
+        return {
+            ...result[0],
+            totalHour : totalHour.total_hours,
+            utilizationRate : (utilRate * 100).toFixed(2)+"%"
+        }
+        // return result;
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+
+async function getTotalUtilization(owner_id, availability) {
+    try {
+        const query = `
+        SELECT
+            SUM((TIME_TO_SEC(stadium.close_hour) - TIME_TO_SEC(stadium.open_hour)) / 3600) AS total_hours
+        FROM stadium
+        WHERE stadium.owner_id = ?
+            AND stadium.availability = ?;
+        `;
+
+        const [result] = await connection.query(query, [owner_id, availability]);
+
+        return result[0]; // Returns total hours as a single value
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+
+async function getOverviewByStadium(owner_id, location_status, startDate, endDate) {
+    try {
+        const query = `
+SELECT
+    stadium.id AS stadium_id,
+    COALESCE(SUM(stadium_courttype.price_per_hr), 0) AS total_amount,
+    COUNT(DISTINCT reservation.id) AS total_reservations
+FROM stadium
+LEFT JOIN reservation 
+    ON stadium.id = reservation.stadium_id 
+    AND reservation.date BETWEEN ? AND ?
+LEFT JOIN court 
+    ON court.id = reservation.court_id
+LEFT JOIN stadium_courttype 
+    ON stadium_courttype.stadium_id = stadium.id
+    AND stadium_courttype.court_type_id = court.court_type_id
+WHERE stadium.owner_id = ?
+  AND stadium.availability = ?
+  GROUP BY stadium.id;
+        `;
+        const [result] = await connection.query(query, [startDate, endDate, owner_id, location_status]);
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+        const totalHour = await getTotalUtilizationByStadium(owner_id, true);
+        // console.log(totalHour)
+
+        const mergedData = totalHour.map(th => {
+            const resData = result.find(r => r.stadium_id === th.stadium_id) || {
+                total_amount: '0',
+                total_reservations: 0
+            };
+
+            const mergedObject = {
+                // stadium_id: th.stadium_id,
+                Location : th.stadium_name,
+                // total_hours: th.total_hours,
+                Revenue: resData.total_amount,
+                Booking: resData.total_reservations,
+                Utilization_Rate : ((parseFloat(resData.total_reservations) / (parseFloat(th.total_hours) * diffDays)).toFixed(2) * 100)+"%"
+            };
+
+            // console.log("Merged Object:", mergedObject); // Debugging each merged entry
+
+            return mergedObject;
+        });
+
+        return mergedData;
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+async function getTotalUtilizationByStadium(owner_id, availability) {
+    try {
+        const query = `
+SELECT
+    stadium.id AS stadium_id,
+    stadium.name as stadium_name,
+    SUM((TIME_TO_SEC(stadium.close_hour) - TIME_TO_SEC(stadium.open_hour)) / 3600) AS total_hours
+FROM stadium
+WHERE stadium.owner_id = ? 
+    AND stadium.availability = ? 
+GROUP BY stadium.id;
+        `;
+
+        const [result] = await connection.query(query, [owner_id, availability]);
+
+        return result; // Returns total hours as a single value
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+async function getOccupancyStatistics(owner_id, reservationStatus, location_status, startDate, endDate){
+    try{
+            const query = `
+    SELECT
+        reservation.date AS date,
+        COUNT(DISTINCT reservation.id) AS total_reservations
+    FROM reservation
+    JOIN stadium ON stadium.id = reservation.stadium_id
+    WHERE stadium.owner_id = ?
+      AND stadium.availability = ?     
+      AND reservation.date BETWEEN ? AND ?
+      AND reservation.status = ?
+      GROUP BY reservation.date;
+            `;
+
+            const [result] = await connection.query(query, [owner_id, location_status, startDate, endDate, reservationStatus]);
+
+            return result
+    }catch (error) {
+
+    }
+}
+
+async function getReview(owner_id){
+
+    try{
+        const query =`
+        SELECT
+        review.id AS review_id,
+        user.first_name AS Name,
+        review.comment AS Review,
+        review.rating AS Score,
+        review.date AS date,
+        stadium.name AS Stadium
+        FROM review
+        JOIN stadium ON stadium.id = review.stadium_id
+        JOIN user ON user.id = review.user_id
+        WHERE stadium.owner_id = ?
+        ORDER BY review.date;
+        `
+        const [result]  = await connection.query(query, [owner_id])
 
         return result
     }
-    catch (error){
+    catch (error) {
         console.log(error)
         return null
     }
 }
+async function deleteStadiumForVerify(stadium_id) {
+    try {
+        if (!connection) {
+            throw new Error("Database connection is not initialized");
+        }
 
-async function getUtilzation(owner_id){
-    try{
-        const query = `
-        SELECT
-        stadium.id,
-            stadium.open_hour,
-            stadium.close_hour,
-        (TIME_TO_SEC(stadium.close_hour) - TIME_TO_SEC(stadium.open_hour)) / 3600 AS hours_per_stadium
-        FROM stadium
-        WHERE stadium.owner_id = ?
-            AND stadium.availability = ?;`
+        if (!stadium_id) {
+            throw new Error("Invalid stadium_id provided");
+        }
+
+        console.log(`🛠️ Deleting data for stadium_id: ${stadium_id}`);
+
+        // เริ่ม transaction
+        await connection.beginTransaction();
+
+        const deleteQueries = [
+            { query: "DELETE FROM picture WHERE stadium_id = ?", params: [stadium_id] },
+            { query: "DELETE FROM stadium_facility WHERE stadium_id = ?", params: [stadium_id] },
+            { query: "DELETE FROM stadium_courttype WHERE stadium_id = ?", params: [stadium_id] },
+            { query: "DELETE FROM stadium WHERE id = ?", params: [stadium_id] }
+        ];
+
+        let totalDeleted = 0;
+
+        for (const { query, params } of deleteQueries) {
+            try {
+                const [result] = await connection.query(query, params);
+                totalDeleted += result.affectedRows;
+                console.log(`✅ Deleted ${result.affectedRows} rows from table`);
+            } catch (err) {
+                console.warn(`⚠️ No data found for query: ${query}`);
+            }
+        }
+
+        if (totalDeleted > 0) {
+            await connection.commit(); // ✅ ยืนยันการลบถ้ามีข้อมูลถูกลบ
+            console.log(`✅ Deleted data for stadium_id: ${stadium_id} from multiple tables`);
+            return { success: true, message: "Data deleted successfully from all tables" };
+        } else {
+            await connection.rollback(); // ❌ ยกเลิกถ้าไม่มีข้อมูลในทุกตาราง
+            console.warn(`⚠️ No records found for stadium_id: ${stadium_id}`);
+            return { success: false, message: "No records found to delete" };
+        }
+    } catch (error) {
+        await connection.rollback(); // ❌ ยกเลิกการทำงานถ้ามีข้อผิดพลาด
+        console.error("🔥 Database Error:", error);
+        return { success: false, message: "Database error" };
     }
-    catch (error){
+}
+
+async function getStadiumWithPicturesToVerifySearch(column1, data1, searchTerm = '') {
+    try {
+        const query = `
+            SELECT s.*, GROUP_CONCAT(p.path) AS pictures
+            FROM stadium s
+            LEFT JOIN picture p ON s.id = p.stadium_id
+            WHERE s.?? = ?
+            ${searchTerm ? 'AND s.name LIKE ?' : ''}  -- เพิ่มเงื่อนไขค้นหาชื่อ (ถ้ามี searchTerm)
+            GROUP BY s.id`;
+
+        const params = searchTerm ? [column1, data1, `%${searchTerm}%`] : [column1, data1];
+        const [result] = await connection.query(query, params);
+
+        if (result.length === 0) return null;
+
+        return result.map(stadium => ({
+            ...stadium,
+            pictures: stadium.pictures ? stadium.pictures.split(",") : []  // Convert to array
+        }));
+    } catch (error) {
+        console.error("Database error:", error);
         return null;
+    }
+}
+
+async function updateStadiumVerify(stadium_id, verify) {
+    try {
+        const query = `
+            UPDATE stadium
+            SET verify = ?
+            WHERE id = ?;
+        `;
+        const [result] = await connection.query(query, [verify, stadium_id]);
+
+        if (result.affectedRows > 0) {
+            console.log(`✅ Updated stadium ${stadium_id} to ${verify}`);
+            return { success: true };  // ✅ ต้องคืนค่า success เพื่อให้ React เช็กได้
+        } else {
+            console.warn(`⚠️ No stadium updated`);
+            return { success: false };
+        }
+    } catch (error) {
+        console.error("🔥 Database Error:", error);
+        return { success: false };
     }
 }
 
@@ -768,7 +1017,8 @@ module.exports = {
     , getTransactions , updateReservationStatus,updateUserdata , getCourt , updateStadiumdata , getStadiumSortedByDistance
     , getStadiumWithPicturesToVerify,updateCourtStatus,getStadiumByLocation
     ,getStadiumCourtsData,getStadiumData,getCourtReservation,checkReservationDuplicate,addReservation
-    ,getBookingData, checkOwnerReservation, getTransaction, getOverview,getUtilzation
+    ,getBookingData, checkOwnerReservation, getTransaction, getOverview, getOverviewByStadium, getOccupancyStatistics, getReview
+    , deleteStadiumForVerify, getStadiumWithPicturesToVerifySearch, updateStadiumVerify
 
 };
 

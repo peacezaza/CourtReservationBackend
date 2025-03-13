@@ -50,12 +50,78 @@ function getWeekPeriod(){
     const endOfWeek = new Date(today);
     endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
 
-    const weekperiod =[
-        {start:startOfWeek.toISOString()},
-        {end:endOfWeek.toISOString()}
-    ]
+    const weekperiod = {
+        start:startOfWeek.toISOString(),
+        end:endOfWeek.toISOString()
+    }
 
     return weekperiod
 }
 
-module.exports = { getCountryData, getStates, getWeekPeriod}
+function getMonthPeriod() {
+    const today = new Date();
+
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const monthPeriod = {
+        start: startOfMonth.toISOString(),
+        end: endOfMonth.toISOString()
+    };
+
+    return monthPeriod;
+}
+
+function getYearPeriod() {
+    const today = new Date();
+
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const endOfYear = new Date(today.getFullYear(), 11, 31);
+
+    const yearPeriod = {
+        start: startOfYear.toISOString(),
+        end: endOfYear.toISOString()
+    };
+
+    return yearPeriod;
+}
+
+const groupByWeeks = (statistics) => {
+    const weeks = { week1: 0, week2: 0, week3: 0, week4: 0 };
+
+    statistics.forEach(entry => {
+        const localDate = new Date(entry.date);
+        const dayOfMonth = localDate.getDate(); // Get day of the month
+
+        if (dayOfMonth <= 7) {
+            weeks.week1 += entry.total_reservations;
+        } else if (dayOfMonth <= 14) {
+            weeks.week2 += entry.total_reservations;
+        } else if (dayOfMonth <= 21) {
+            weeks.week3 += entry.total_reservations;
+        } else {
+            weeks.week4 += entry.total_reservations;
+        }
+    });
+
+    return weeks;
+};
+
+const groupByMonths = (statistics) => {
+    const months = {
+        Jan: 0, Feb: 0, Mar: 0, Apr: 0, May: 0, Jun: 0,
+        Jul: 0, Aug: 0, Sep: 0, Oct: 0, Nov: 0, Dec: 0
+    };
+
+    statistics.forEach(entry => {
+        const localDate = new Date(entry.date);
+        const monthKey = localDate.toLocaleString("en-US", { month: "short" }); // Get "Jan", "Feb", etc.
+
+        months[monthKey] += entry.total_reservations;
+    });
+
+    return months;
+};
+
+module.exports = { getCountryData, getStates, getWeekPeriod, getMonthPeriod, getYearPeriod, groupByWeeks, groupByMonths }

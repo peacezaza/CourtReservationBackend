@@ -4,11 +4,16 @@ const { connectDatabase, checkDuplicate, insertNewUser, login, getUserInfo, addS
     , getStadiumWithPictures,addReservation , checkReservationDuplicate, getCourtReservation, getStadiumData,
     updateReservationStatus, getCourt, updateUserdata, updateStadiumdata, getStadiumWithPicturesToVerify,
     getStadiumCourtsData, getStadiumSortedByDistance, getStadiumByLocation, updateCourtStatus
-    ,getBookingData, checkOwnerReservation, getTransaction, getOverview,getUtilzation
+    ,getBookingData, checkOwnerReservation, getTransaction, getOverview, getOverviewByStadium, getOccupancyStatistics, getReview
+    , deleteStadiumForVerify, getStadiumWithPicturesToVerifySearch, updateStadiumVerify
 } = require('./database')
 const {createToken, decodeToken, authenticateToken} = require('./authentication')
-const {getCountryData, getStates, getWeekPeriod} = require('./getData')
+const {getCountryData, getStates, getWeekPeriod, getMonthPeriod, getYearPeriod, groupByWeeks, groupByMonths} = require('./getData')
 const {upload, saveStadiumPhotos} = require('./image')
+
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client('90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com');
+
 
 const fs = require('fs');
 const path = require('path');
@@ -75,7 +80,6 @@ app.post('/login', async (req, res) => {
         }
     }
     else if(username === undefined){
-        console.log("TAP")
         if(await checkDuplicate(email, "email", "user")){
             if(await login(email, "email", password)){
                 console.log("Logged in Successfully\n")
@@ -114,19 +118,24 @@ app.post('/signup',  async (req, res) => {
 
 
     console.log("Email: ", email, "\n","Username ", username, "\n", "Password: ", password, "\n", "User_type", user_type,  "\n");
-    // console.log(await checkDuplicate(email, "email", "user"))
 
-    if(username !== undefined){
+    if(user_type === "client"){
         if (!(await checkDuplicate(email, "email", "user")) && !(await checkDuplicate(username, "username", "user"))) {
             // console.log(await insertNewUser(username, email, password, user_type,points));
-            await insertNewUser(username, email, password, user_type,points)
-            const data = await getUserInfo(email, "email")
-            const token = createToken(data);
-            return res.status(201).json({
-                "success": true,
-                "message": "User successfully created",
-                "token": token
-            })
+            if(await insertNewUser(username, email, password, user_type,points) !== null){
+                const data = await getUserInfo(email, "email")
+                const token = createToken(data);
+                return res.status(201).json({
+                    "success": true,
+                    "message": "User successfully created",
+                    "token": token
+                })
+            }else{
+                return res.status(400).json({
+                    "success" : false,
+                    "message" : "Error during adding new user"
+                })
+            }
         }
         else if(await checkDuplicate(email, "email", "user") && await checkDuplicate(username, "username", "user")){
             console.log("Duplicated Email and User\n");
@@ -153,15 +162,21 @@ app.post('/signup',  async (req, res) => {
     }else{
         if (!(await checkDuplicate(email, "email", "user"))) {
             // console.log(await insertNewUser(username, email, password, user_type, points));
-            await insertNewUser(username, email, password, user_type, points)
-            console.log("Inserted Success")
-            const data = await getUserInfo(email, "email")
-            const token = createToken(data);
-            return res.status(201).json({
-                "success": true,
-                "message": "User successfully created",
-                "token" : token
-            })
+            if(await insertNewUser(username, email, password, user_type, points)!== null){
+                console.log("Inserted Success")
+                const data = await getUserInfo(email, "email")
+                const token = createToken(data);
+                return res.status(201).json({
+                    "success": true,
+                    "message": "User successfully created",
+                    "token" : token
+                })
+            }else{
+                return res.status(400).json({
+                    "success" : false,
+                    "message" : "Error during adding new user"
+                })
+            }
         }
         else{
             console.log("Duplicated Email \n");
@@ -265,7 +280,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
                             }
                             //Insert Court
                             for(let i = 0; i < totalCourt; i++){
-                                const result = await addCourt(id.insertId, courtTypeData[0].id, "available")
+                                const result = await addCourt(id.insertId, courtTypeData[0].id, i, "available")
                                 if(result !== null){
                                     // console.log("Success added Court")
                                 }
@@ -306,6 +321,7 @@ app.post('/addStadium', authenticateToken, async (req,res) =>{
     }
 })
 
+
 app.get("/getStadiumInfo", authenticateToken, async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]);
 
@@ -337,36 +353,44 @@ app.get("/getStadiumInfo", authenticateToken, async (req, res) => {
     }
 })
 
-app.get("/getStadiumForVerify", authenticateToken, async (req, res) => {
+app.put("/updateStadiumVerify", authenticateToken, async (req, res) => {
+    console.log("Received request:", req.body);
+    const { stadium_id, verify } = req.body;
+    const result = await updateStadiumVerify(stadium_id, verify);
+    console.log("Database update result:", result);
+
+    // 🔍 ตรวจสอบให้แน่ใจว่าคืนค่า status
+    return res.status(200).json({ status: result.success });
+});
+app.get("/getStadiumForVerifySearch", authenticateToken, async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]);
+    const { searchTerm } = req.query; // รับ searchTerm จาก query parameter
 
-    let stadiumDatas = await getStadiumWithPicturesToVerify("verify", "not verify")
+    let stadiumDatas = await getStadiumWithPicturesToVerifySearch("verify", "not verify", searchTerm);
 
+    console.log(stadiumDatas);
 
-    console.log(stadiumDatas)
-
-    if(stadiumDatas !== null){
+    if (stadiumDatas !== null) {
         stadiumDatas = stadiumDatas.map(stadium => ({
             ...stadium,
             pictures: (stadium.pictures.length === 0)
-                ? [`${req.protocol}://${req.get('host')}/uploads/imageNotFound.jpg`]  // Default image if empty
+                ? [`${req.protocol}://${req.get('host')}/uploads/imageNotFound.jpg`] // Default image
                 : stadium.pictures.map(pic => `${req.protocol}://${req.get('host')}/${pic.replace(/\\/g, '/')}`)
         }));
 
-        console.log(stadiumDatas)
+        console.log(stadiumDatas);
         return res.status(200).json({
-            "status" : true,
-            "message" : "Successfully",
-            "data" : stadiumDatas
-        })
-    }
-    else{
+            "status": true,
+            "message": "Successfully",
+            "data": stadiumDatas
+        });
+    } else {
         return res.status(400).json({
-            "status" : false,
-            "message" : "Error during getStadium"
-        })
+            "status": false,
+            "message": "Error during getStadium"
+        });
     }
-})
+});
 
 app.post("/addNotifications", async (req, res) => {
     const { user_id, notification } = req.body;
@@ -617,6 +641,7 @@ app.put("/updateUserdata", authenticateToken, async (req, res) => {
 
 app.get("/getUserData", authenticateToken, async (req, res) =>{
     const user_id = decodeToken(req.headers.authorization.split(" ")[1]).userData.id;
+    console.log(user_id)
 
     const userdata = await getData("user", "id", user_id)
     console.log(userdata)
@@ -709,20 +734,153 @@ app.get("/owner/getTransaction", authenticateToken, async (req, res) => {
 
 })
 
-app.get("/owner/getWeeklyDashboard", async (req, res) => {
+app.get("/owner/getDashboard", async (req, res) => {
     const userData = decodeToken(req.headers.authorization.split(" ")[1]).userData;
-    const weekperiod = getWeekPeriod();
-    console.log(weekperiod)
+    const period = req.query.period;
+    let overview;
+    let stadiumOverview;
+    let statistics;
+    // console.log(weekperiod)
+    // console.log(period)
+    if(period === "weekly"){
+        const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        const weekperiod = getWeekPeriod();
+        overview = await getOverview(userData.id, true, weekperiod.start, weekperiod.end)
+        stadiumOverview = await getOverviewByStadium(userData.id, true, weekperiod.start, weekperiod.end)
+        statistics = await getOccupancyStatistics(userData.id, "confirmed", true, weekperiod.start, weekperiod.end)
+        statistics = statistics.map(entry => {
+            const localDate = new Date(entry.date); // Convert to local time
+            return {
+                ...entry,
+                day: days[localDate.getDay()] // Get the day abbreviation
+            };
+        });
+    }else if(period === 'monthly'){
+        const monthPeriod = getMonthPeriod();
+        console.log(monthPeriod);
+        overview = await getOverview(userData.id, true, monthPeriod.start, monthPeriod.end)
+        stadiumOverview = await getOverviewByStadium(userData.id, true, monthPeriod.start, monthPeriod.end)
+        statistics = await getOccupancyStatistics(userData.id, "confirmed", true, monthPeriod.start, monthPeriod.end)
+        statistics = groupByWeeks(statistics)
 
-    const overview = await getOverview(userData.id, true, weekperiod[0].start, weekperiod[0].end)
-    console.log(overview)
+    }else if(period === 'yearly'){
+        const yearPeriod = getYearPeriod()
+        console.log(yearPeriod);
+        overview = await getOverview(userData.id, true, yearPeriod.start, yearPeriod.end)
+        stadiumOverview = await getOverviewByStadium(userData.id, true, yearPeriod.start, yearPeriod.end)
+        statistics = await getOccupancyStatistics(userData.id, "confirmed", true, yearPeriod.start, yearPeriod.end)
+        statistics = groupByMonths(statistics)
+    }
 
-    return res.status(200).json({
-        "status": true,
-    })
+    let review = await getReview(userData.id)
+    console.log("Review:")
+    // review = review.slice(0,3)
+    console.log(review)
+
+
+    if(overview){
+        return res.status(200).json({
+            "status": true,
+            "data" : overview,
+            "stadiumdata" : stadiumOverview,
+            "statistics" : statistics,
+            "review" : review
+        })
+    }else{
+        return res.status(400).json({
+            "status" : false,
+            "message" : "Error during query overview"
+        })
+    }
+})
+
+app.get("/owner/nofitication", async (req,res) => {
+
 })
 
 
+app.post("/google-signup", async (req, res) => {
+    try{
+        const token = req.body.credential;
+        const user_type = req.body.user_type
+        if (!token) {
+            return res.status(400).json({ success: false, message: "No token provided" });
+        }
+
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: '90601118992-th16ma48ht4l0m7rsda45l9j60l31ctf.apps.googleusercontent.com',
+        });
+
+        const payload = ticket.getPayload();
+        const { email, given_name, family_name, sub: googleId } = payload;
+        console.log(payload)
+        if(!await checkDuplicate(email, "email", "user")){
+            console.log("PASSED")
+            const newUser = await insertNewUser(null,email,"1",user_type, 0)
+            const userId = newUser.insertId
+            if(newUser){
+                // const updateData = await updateUserdata()
+                if(await updateUserdata(userId, given_name, family_name, null)){
+                    console.log("Updated")
+                }
+                const user = await getUserInfo(email, "email")
+                console.log(user)
+                const token = await createToken(user)
+                return res.status(200).json({
+                    success : true,
+                    "message": "Logged in Successfully",
+                    "token": token,
+                })
+            }
+        }else{
+            const user = await getUserInfo(email, "email")
+            if(await login(email, "email", "1")){
+                const token = await createToken(user)
+                console.log(user)
+                return res.status(200).json({
+                    success : true,
+                    "message": "Logged in Successfully",
+                    "token": token,
+                })
+            }else{
+                return res.status(401).json({
+                    success:false,
+                    message : "email already exists"
+                });
+            }
+        }
+    }
+    catch (error){
+        console.log(error)
+    }
+})
+
+app.delete("/deleteStadiumForVerify", authenticateToken, async (req, res) => {
+    try {
+        const { stadium_id } = req.body;
+
+        if (!stadium_id) {
+            console.warn("⚠️ Missing stadium_id in request");
+            return res.status(400).json({ success: false, message: "Missing stadium_id" });
+        }
+
+        console.log(`🔍 Received request to delete stadium_id: ${stadium_id}`);
+
+        const result = await deleteStadiumForVerify(stadium_id);
+
+        if (!result.success) {
+            console.warn(`⚠️ Deletion failed: ${result.message}`);
+            return res.status(404).json(result);
+        }
+
+        console.log(`✅ Successfully deleted stadium_id: ${stadium_id}`);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("🔥 Unexpected Error:", error);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+});
 
 app.post("/forgot-password", authenticateToken, async (req, res) => {
 
@@ -732,9 +890,3 @@ app.post("/forgot-password", authenticateToken, async (req, res) => {
 app.listen(port,ip, () => { // Specifying the IP address to bind to
     console.log(`Example app listening at http://${ip}:${port}`)
 });
-
-
-
-
-
-
