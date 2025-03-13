@@ -1335,11 +1335,12 @@ async function addToCart(user_id, stadium_id, court_id, date, start_time, end_ti
             SELECT id
             FROM cart
             WHERE user_id = ?
+            AND court_id =?
               AND date = ?
               AND start_time = ?
               AND end_time = ?
         `;
-        const [existingItems] = await connection.query(checkQuery, [user_id, date, start_time, end_time]);
+        const [existingItems] = await connection.query(checkQuery, [user_id, court_id,date, start_time, end_time]);
 
         // ถ้ามีรายการที่ซ้ำกัน
         if (existingItems.length > 0) {
