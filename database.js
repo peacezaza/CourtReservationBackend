@@ -1780,7 +1780,7 @@ async function removeFromCart(cartId) {
                 pictures: party.pictures
                     ? party.pictures.split(',').map(path => ({
                           path: path,
-                          photoUrl: `http://localhost:3000/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
+                          photoUrl: `${BASE_URL}/${path.replace(/\\/g, '/')}`  // แปลง path ให้เป็น URL ที่ถูกต้อง
                       }))
                     : [],  // แปลงรูปภาพเป็น array ของ object
                 members: party.members ? party.members.split(',') : []  // แปลงสมาชิกเป็น array
