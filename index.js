@@ -818,19 +818,13 @@ app.put("/change_password", authenticateToken, async (req, res) => {
 
 
 
-
 app.post('/party/join', authenticateToken, async (req, res) => {
     const user = req.user;
     const username = user.userData.username;
     const { partyid } = req.body;
 
     try {
-        const re = await checkAndCancelExpiredParties(partyid);
-        
-        // ตรวจสอบว่ามี error จาก checkAndCancelExpiredParties หรือไม่
-        if (re.error) {
-            throw new Error(re.error); // ส่ง error ไปยัง catch block
-        }
+        await checkAndCancelExpiredParties(partyid); // เรียกใช้ฟังก์ชันตรวจสอบปาร์ตี้
     
         const result = await joinParty(partyid, username);
         res.status(200).json(result);
@@ -845,6 +839,8 @@ app.post('/party/join', authenticateToken, async (req, res) => {
             res.status(404).json({ error: err.message });
         } else if (err.message === 'User does not have enough points to join the party') {
             res.status(400).json({ error: err.message });
+        } else if (err.message === 'partycancel') { // จัดการ error 'partycancel'
+            res.status(400).json({ error: 'Party has been canceled due to expiration' });
         } else {
             res.status(500).json({ error: 'Internal server error' });
         }

@@ -1978,6 +1978,7 @@ async function removeFromCart(cartId) {
             const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
             console.log(formattedDate);
             console.log(formattedTime);
+    
             // ดึงข้อมูลปาร์ตี้ที่กำลังตรวจสอบ
             const [partyResults] = await connection.query(`
                 SELECT id, end_time, price_per_person, status
@@ -2021,8 +2022,11 @@ async function removeFromCart(cartId) {
                     UPDATE party SET status = 'cancel' WHERE id = ?
                 `, [partyId]);
     
-                throw new Error('partycancel'); // ❗ ปาร์ตี้หมดเวลา -> โยน Error ออกไป
+                throw new Error('Party expired'); // โยน error เมื่อปาร์ตี้หมดอายุ
             }
+    
+            // ถ้าไม่มี error ให้ return ค่า
+            return { success: true };
         } catch (error) {
             console.error("Error in checkAndCancelExpiredParties:", error);
             throw error;
